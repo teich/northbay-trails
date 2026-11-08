@@ -23,7 +23,6 @@ export const PLAN_COLORS = {
 
 const LIFT = 0.12; // world units above the ground so lines don't sink into the mesh
 
-export type Filter = 'all' | 'hike' | 'bike';
 export type Progress = 'all' | 'todo' | 'done';
 export type PlanGroup = 'new' | 'designate' | 'decommission';
 
@@ -84,7 +83,6 @@ export class TrailLayer {
   private materials: LineMaterial[] = [];
   private projected: { trail: number; pts: Float32Array }[] = [];
   private projectedFor = '';
-  filter: Filter = 'all';
   progress: Progress = 'all';
   /** Which planned-change groups are shown; empty means the plan overlay is off */
   plans = new Set<PlanGroup>();
@@ -202,8 +200,6 @@ export class TrailLayer {
     // decommissioned trails aren't open to anyone, but they belong in every view of the plan
     if (group === 'decommission') return true;
     if (this.progress !== 'all' && !t.plan && isRidden(t) !== (this.progress === 'done')) return false;
-    if (this.filter === 'bike') return t.bike || t.bikePartial;
-    if (this.filter === 'hike') return t.hike;
     return true;
   }
 

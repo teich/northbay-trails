@@ -3,7 +3,7 @@
 The screen has three main parts:
 
 - **The map**, filling the window
-- **The sidebar** on the left, with the park buttons, your ride progress, search, filters, and the trail list
+- **The sidebar** on the left, with the park buttons, your ride progress, search, the ridden filter, and the trail list
 - **The trail card** on the right, which slides in when you pick a trail
 
 ## Moving around
@@ -49,13 +49,6 @@ There are three ways to find a trail:
 - **Browse the list.** The sidebar lists every trail alphabetically, with its length and, when it's rated, a green circle, blue square, or black diamond. Hovering a list item highlights that trail on the map.
 
 When you select a trail, the map flies to it and highlights it in gold. Everything else fades back a little. Press `Esc`, click an empty spot on the map, or close the card to deselect.
-
-### Filters
-
-The **All / Hike / Bike** buttons narrow both the map and the list:
-
-- **Hike**: trails open to people on foot
-- **Bike**: trails open to bikes, including trails where bikes are allowed on part of the route
 
 ## Reading a trail card
 

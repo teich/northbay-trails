@@ -1,11 +1,10 @@
 import { Park, Region, Trail } from './data';
 import { Rides } from './rides';
-import { Filter, PlanGroup, Progress, planGroup, trailColor } from './trails';
+import { PlanGroup, Progress, planGroup, trailColor } from './trails';
 
 interface Handlers {
   onSelect: (id: number | null, opts?: { fly?: boolean }) => void;
   onHover: (id: number | null) => void;
-  onFilter: (f: Filter) => void;
   onProgress: (p: Progress) => void;
   /** a park or region was picked (null = everywhere): its id, and the parks it covers */
   onPark: (id: string | null, parks: string[]) => void;
@@ -30,7 +29,6 @@ const norm = (s: string) =>
     .trim();
 
 export class UI {
-  private filter: Filter = 'all';
   private progress: Progress = 'all';
   private park: string | null = null;
   private plansOn = false;
@@ -86,15 +84,6 @@ export class UI {
       this.render();
       this.search.focus();
     });
-
-    for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-filter]')) {
-      btn.addEventListener('click', () => {
-        this.filter = btn.dataset.filter as Filter;
-        document.querySelectorAll('[data-filter]').forEach((b) => b.classList.toggle('on', b === btn));
-        this.h.onFilter(this.filter);
-        this.render();
-      });
-    }
 
     for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-progress]')) {
       btn.addEventListener('click', () => {

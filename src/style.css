@@ -1111,6 +1111,10 @@ body.clean :is(#panel, #builders, #card, #legend, #legend-plan, #controls, #hint
 .progress-filters {
   padding-top: 8px;
 }
+.progress-filters button,
+.progress-filters #result-count {
+  white-space: nowrap;
+}
 .ride-check {
   flex: none;
   width: 20px;

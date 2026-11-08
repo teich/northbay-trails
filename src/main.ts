@@ -242,11 +242,6 @@ async function main() {
   const ui = new UI(trails, map.parks, map.regions, rides, {
     onSelect: (id, opts) => select(id, opts),
     onHover: (id) => setHover(id),
-    onFilter: (f) => {
-      trailLayer.filter = f;
-      trailLayer.rebuildBase();
-      dirty = true;
-    },
     onProgress: (p) => {
       trailLayer.progress = p;
       trailLayer.rebuildBase();
