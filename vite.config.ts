@@ -1,7 +1,18 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readFileSync, readdirSync } from 'node:fs';
+import { cloudflare } from '@cloudflare/vite-plugin';
 import { defineConfig, type Plugin } from 'vite';
 
 const PORT = 5317;
+
+// Short hash of everything in public/data/. src/data.ts adds it to the data URLs so a
+// deploy that changes the data never pairs new code with an hour-old cached copy.
+function dataVersion(): string {
+  const hash = createHash('sha256');
+  for (const name of readdirSync('public/data').sort()) hash.update(name).update(readFileSync(`public/data/${name}`));
+  return hash.digest('hex').slice(0, 12);
+}
 
 // Publish the dev/preview server on the tailnet with `share <port>` (a wrapper
 // around `tailscale serve`) for as long as it's running, and unpublish on exit.
@@ -51,10 +62,12 @@ function tailnetShare(port: number): Plugin {
 }
 
 export default defineConfig({
+  define: { __DATA_VERSION__: JSON.stringify(dataVersion()) },
   base: './',
   build: { chunkSizeWarningLimit: 800 }, // three.js is most of it
   // strictPort: the tailnet share points at this exact port
   server: { port: PORT, strictPort: true, allowedHosts: ['.ts.net'] },
   preview: { port: PORT, strictPort: true, allowedHosts: ['.ts.net'] },
-  plugins: [tailnetShare(PORT)],
+  // cloudflare(): reads cloudflare.config.ts and writes Build Output for `cf deploy`
+  plugins: [cloudflare(), tailnetShare(PORT)],
 });

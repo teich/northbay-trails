@@ -45,7 +45,13 @@ Always check the land manager's current rules and closures before you go.
 
 ## Deploying
 
-It's a static site. `npm run build` writes everything to `dist/`. [`render.yaml`](render.yaml) deploys it as a Render static site: the build command is `npm ci && npm run build`, it publishes `dist/`, and it runs on Node 22.12 or newer.
+It's a static site on Cloudflare Workers, served at [trails.teich.net](https://trails.teich.net) from the Teich account. Deploy with the Cloudflare `cf` CLI:
+
+```
+npx cf deploy
+```
+
+That runs `vite build` (the `@cloudflare/vite-plugin` writes the build to `.cloudflare/output/`) and uploads it as static assets. The Worker, account, and custom domain are set in [`cloudflare.config.ts`](cloudflare.config.ts). Cache and security headers are in [`public/_headers`](public/_headers). Data files are cached for an hour, so the app requests them with a hash of `public/data/` in the URL (`__DATA_VERSION__` in `vite.config.ts`); new code never gets old cached data. `npm run build` still type-checks and builds, but `cf deploy` deploys whatever is in the working tree, so commit first.
 
 ## Link previews
 

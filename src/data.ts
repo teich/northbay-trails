@@ -227,11 +227,16 @@ export function toWorld(map: MapData, x: number, y: number, ele: number): [numbe
   return [(x - map.widthM / 2) / WORLD_SCALE, ((ele - map.datum) / WORLD_SCALE) * map.exaggeration, -(y - map.heightM / 2) / WORLD_SCALE];
 }
 
+// Hash of public/data/, set in vite.config.ts. The data files are cached for an hour, so
+// without it new code could be paired with old cached data after a deploy.
+declare const __DATA_VERSION__: string;
+
 export async function loadData() {
+  const v = `?v=${__DATA_VERSION__}`;
   const [map, trails, terrainBuf] = await Promise.all([
-    fetch('data/map.json').then((r) => r.json() as Promise<MapData>),
-    fetch('data/trails.json').then((r) => r.json() as Promise<Trail[]>),
-    fetch('data/terrain.bin').then((r) => r.arrayBuffer()),
+    fetch(`data/map.json${v}`).then((r) => r.json() as Promise<MapData>),
+    fetch(`data/trails.json${v}`).then((r) => r.json() as Promise<Trail[]>),
+    fetch(`data/terrain.bin${v}`).then((r) => r.arrayBuffer()),
   ]);
   // No planned-trail overlay for the North Bay (yet); the Tahoe plan code stays dormant.
   const future: FutureData = { project: '', decision: '', source: '', plans: [], trailheads: [] };
