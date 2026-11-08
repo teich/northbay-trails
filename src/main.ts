@@ -218,7 +218,10 @@ async function main() {
   const basinPoints = ringPoints([edge]);
   const parkPoints = new Map(map.parks.map((p) => [p.id, ringPoints(p.rings)]));
 
-  const HOME_PAD: Padding = { left: 370, right: 100, top: 40, bottom: 60 };
+  // Regions zoom to these parks only, not every trail they hold: East is Annadel to Angwin (PUC)
+  const REGION_FRAME: Record<string, string[]> = { east: ['annadel', 'puc'] };
+
+  const HOME_PAD: Padding ={ left: 370, right: 100, top: 40, bottom: 60 };
   function home() {
     frameBox(basinPoints, HOME_PAD, HOME_AZIMUTH, POLAR);
   }
@@ -250,7 +253,10 @@ async function main() {
     },
     onPark: (id, parks, trailIds) => {
       if (selected !== null) select(null);
-      if (id) {
+      if (id && REGION_FRAME[id]) {
+        // a region frames a tighter core; whatever gets clipped comes into view as the zoom plays
+        frameBox(REGION_FRAME[id].flatMap((p) => parkPoints.get(p)!), { left: 380, right: 80, top: 60, bottom: 60 });
+      } else if (id) {
         // frame the park outlines and every trail in the view (trails can run well outside the parks)
         const box = new THREE.Box3().setFromPoints(parks.flatMap((p) => parkPoints.get(p)!));
         for (const t of trailIds) box.union(trailLayer.bounds(t));
