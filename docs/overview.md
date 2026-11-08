@@ -1,28 +1,30 @@
 # What it is
 
-Tahoe Trails is a map for getting a feel for the trails around Lake Tahoe. It isn't meant for turn-by-turn navigation. The goal is to make the whole basin legible at a glance: where the trails are, how they connect, and how they sit in the terrain. From there you can dig into any single trail.
+North Bay Trails is a map for getting a feel for the trails at a few North Bay mountain bike parks, and for keeping track of which ones you've ridden. It isn't meant for turn-by-turn navigation. The goal is to make each park legible at a glance: where the trails are, how they connect, how they sit in the terrain, and which ones you still haven't ridden.
 
-It's built to feel more like a picture book than a GIS tool. The basin is shown as a small isometric diorama: a block of land with its edges cut away, painted in a loose watercolor style. Water pools in soft blues, forests are loose green washes, the high granite is pale and violet in shadow, and little conifers dot the slopes. It's designed for a laptop screen.
+It's built to feel more like a picture book than a GIS tool. The region is shown as a long isometric diorama: a strip of land from the Russian River to Lake Hennessey with its edges cut away, painted in a loose watercolor style. Grassy hills are golden, oak woodland and forest are loose green washes, the redwoods toward the coast are darker, water pools in soft blues, and little conifers dot the slopes. It's designed for a laptop screen.
 
 ## What's on the map
 
-- **The Lake Tahoe Basin**: everything that drains into the lake, painted in full color. Land outside the basin fades to a pale, unfinished wash so the basin stands out.
-- **Trails**: named hiking and mountain bike trails in the basin, grouped so one trail (say, the Tahoe Rim Trail) is one thing you can click.
-  - **Solid vermilion**: open to bikes and hikers
+- **Three parks**, painted in full color. Land between them fades to a paler wash so the parks stand out.
+  - **Monte Rio Redwoods**, above the Russian River
+  - **Trione-Annadel State Park**, on the east side of Santa Rosa, with neighboring Spring Lake and Howarth parks
+  - **Moore Creek Park**, above Lake Hennessey in Napa County
+- **Trails**: named trails and fire roads in each park, grouped so one trail is one thing you can click.
+  - **Solid vermilion**: open to bikes, not ridden yet
+  - **Solid teal**: ridden
   - **Dashed plum**: foot traffic only
-- **Lakes**, drawn with depth: Lake Tahoe shades from shallow turquoise to deep blue.
-- **Peaks, towns, and lake names**, lettered by hand. More labels appear as you zoom in.
-- **The 2026 trail plan** (optional): trails the Forest Service has approved but not yet built. See [The 2026 trail plan](trail-plan.md).
+- **Lakes, the Russian River, peaks, and towns**, lettered by hand. More labels appear as you zoom in.
 
 ## What it's good for
 
-- Seeing which trails are near a trailhead, town, or campsite
+- Seeing the whole region at once, then zooming into one park
+- Ticking off trails as you ride them, and seeing what's left in each park
 - Comparing trails by length and climbing before you pick one
 - Checking at a glance whether bikes are allowed
-- Understanding how the trail network is set to change over the next few years
 
 ## What it isn't
 
 - **Not a navigation map.** Trail lines are generalized and the terrain is exaggerated for drama.
-- **Not a conditions report.** Closures, snow, fire, and seasonal restrictions aren't shown.
+- **Not a conditions report.** Closures aren't shown. Annadel, for example, closes trails after rain.
 - **Not the final word on access.** See [Where the data comes from](data.md) for how bike access is decided and where it's inferred. Always check with the land manager before you go.

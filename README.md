@@ -1,6 +1,6 @@
-# Tahoe Trails
+# North Bay Trails
 
-An interactive, watercolor-style isometric model of the hiking and mountain bike trails in the Lake Tahoe Basin.
+A watercolor-style isometric model of the mountain bike trails at **Monte Rio Redwoods**, **Trione-Annadel**, and **Moore Creek**, with a checklist of which trails you've ridden. The map is one continuous strip of Sonoma and Napa, from the Russian River to Lake Hennessey. Forked from Kyle Aster's [Tahoe Trails](https://trails-fun.warpspire.com/).
 
 ```
 npm install
@@ -12,27 +12,11 @@ The [`docs/`](docs/README.md) folder covers what the app is for and how to use i
 ## Using it
 
 - **Drag** to pan, **scroll** to zoom, **right-drag** to spin (or `Q` / `E` to rotate 90°, `H` to go home, `U` to hide the interface for screenshots)
+- The park buttons (Monte Rio, Annadel, Moore Creek) fly to that park and narrow the list to it. **Everywhere** goes back to the whole region.
 - **Click a trail** on the map, or press `/` to search. Arrow keys + Enter pick from the results.
-- Filter to hiking or biking trails. Links like `#trail=Corral%20Trail` open straight to a trail.
-
-## Deploying
-
-It's a static site. `npm run build` writes everything to `dist/`. [`render.yaml`](render.yaml) deploys it as a Render static site: the build command is `npm ci && npm run build`, it publishes `dist/`, and it runs on Node 22.12 or newer.
-
-## Link previews
-
-`index.html` has the Open Graph and Twitter tags. `npm run social` regenerates `public/og-image.png` (the 1200×630 preview card) and `public/apple-touch-icon.png` (drawn from `public/favicon.svg`). It renders them from the running dev server using your local Chrome, so run `npm run dev` first.
-
-## Movies
-
-The map can render smooth 4K movies for presentations: a boat crossing the lake, or a mountain biker riding a route while it draws on in gold. With `npm run dev` running:
-
-```
-npm run film -- armstrong-sidewinder --draft   # 1080p preview, under a minute
-npm run film -- armstrong-sidewinder           # 3840×2160 / 30 fps → renders/
-```
-
-See [docs/films.md](docs/films.md) for the movies so far, the options, and how to make a new ride.
+- **Tick the box** next to a trail, or use the button on its card, to mark it ridden. Ridden trails turn teal on the map. The bar shows trails and miles ridden for the current park. **To ride** / **Ridden** filter both the list and the map.
+- The ridden list is saved in this browser's localStorage. Use **Export** / **Import** at the bottom of the panel to back it up or move it to another browser.
+- Links like `#park=annadel` or `#trail=Lawndale%20Trail` open straight to a park or trail.
 
 ## Data
 
@@ -40,34 +24,36 @@ See [docs/films.md](docs/films.md) for the movies so far, the options, and how t
 
 | What | Source |
 | --- | --- |
-| Basin outline | USGS Watershed Boundary Dataset, HUC8 16050101 |
-| Trails | OpenStreetMap (Overpass) + USFS National Forest System Trails |
-| Lakes, wilderness, state parks, peaks, towns | OpenStreetMap |
-| Elevation + Lake Tahoe bathymetry | AWS Terrain Tiles (Terrarium, z12) |
-| Planned trails (2026 trail plan overlay) | [USFS Basin Wide Trails Analysis](https://www.fs.usda.gov/r05/laketahoebasin/projects/54566) project GIS |
+| Park outlines | OpenStreetMap (Moore Creek is hand-drawn around its trails because OSM has no outline for it) |
+| Trails | OpenStreetMap (Overpass) |
+| Lakes, the Russian River, peaks, towns | OpenStreetMap |
+| Elevation | AWS Terrain Tiles (Terrarium, z13) |
 
 How trails are chosen:
 
-- Named OSM paths, bridleways, and designated tracks that touch the basin. Climbing approaches, informal paths, private paths, and paved bike paths are dropped.
-- USFS trails are added wherever OSM doesn't already cover them. Trails that match the USFS inventory are marked **Official**. Motorized, OHV, 4WD, and winter routes are excluded.
-- Segments are grouped into trails by name and connectedness. The Tahoe Rim, Pacific Crest, and Tahoe–Yosemite trails are always kept whole.
-- **Bike access** comes from OSM `bicycle` / `mtb:scale` tags and USFS management data. When neither says, bikes are assumed allowed on USFS land and not allowed in wilderness areas, in state parks, or on the PCT. The trail card says "likely allowed" when access was inferred this way.
+- Named OSM paths, tracks (fire roads), and bridleways where at least half the trail lies inside a park or within that park's buffer distance. Private trails, trails closed to access, informal paths, and sidewalks are dropped.
+- Segments are grouped into trails by park, name, and connectedness.
+- **Bike access** comes from the OSM `bicycle` / `mtb:scale` tags. When OSM doesn't say, bikes are assumed allowed except on footways.
 
-**2026 trail plan overlay.** The Forest Service signed the Basin Wide Trails Analysis decision on January 9, 2026, selecting Alternative 1. The overlay combines the project feature service's Proposed Action layer and Alternative 1 additions, plus its three new trailheads. Trail S59 (Angora to N Upper Trails) is left out because the final decision excluded it. The totals match the Decision Notice:
-
-- New trails: 26 mi open to e-bikes, 14.7 mi non-motorized, 4.2 mi motorcycle
-- About 111 mi of existing trail re-designated for Class 1 e-bikes
-- About 2.5 mi decommissioned
-
-The alignments are planning-level, and construction is phased over several years.
+To add a park, add an entry to `PARKS` in `scripts/build-data.mjs` (and widen `BBOX` if it's outside the region), then run `npm run data`. To drop a trail that doesn't belong, add its name to that park's `exclude`.
 
 Always check the land manager's current rules and closures before you go.
 
+## Deploying
+
+It's a static site. `npm run build` writes everything to `dist/`. [`render.yaml`](render.yaml) deploys it as a Render static site: the build command is `npm ci && npm run build`, it publishes `dist/`, and it runs on Node 22.12 or newer.
+
+## Link previews
+
+`npm run social` regenerates `public/og-image.png` (a 1200×630 preview card) and `public/apple-touch-icon.png` (drawn from `public/favicon.svg`). It renders them from the running dev server using your local Chrome, so run `npm run dev` first. `public/og-image.png` is still the Tahoe card until you run it. Once the site has a public URL, add Open Graph tags pointing at the image to `index.html`.
+
 ## How it's drawn
 
-Three.js with an orthographic camera. The terrain is a 50 m heightmap mesh with 2.3× vertical exaggeration, set in a diorama block. The watercolor look comes from:
+Three.js with an orthographic camera. The terrain is a 30 m heightmap mesh with 3× vertical exaggeration, set in a diorama block. The watercolor look comes from:
 
-- `src/shaders.ts`: an elevation, slope, and noise palette with banded "wet edge" lighting and cool violet shadows
+- `src/shaders.ts`: a slope, aspect, and noise palette with banded "wet edge" lighting and cool violet shadows. It paints golden grass on sunny slopes, oak woodland in patches, and fir and redwood forest on north-facing slopes and toward the foggy west. Land outside the parks is painted in a paler wash.
 - A full-screen pass that wobbles the edges, darkens pigment at color boundaries, and adds cold-press paper grain
 
 Trails are screen-space fat lines. Picking projects them to screen space and finds the nearest segment.
+
+The ridden list lives in `src/rides.ts`. Trails are keyed by park and name, not by id, so the list survives a data refresh.

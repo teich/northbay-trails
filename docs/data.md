@@ -4,50 +4,40 @@ All of the map's data comes from public sources. It's gathered and processed ahe
 
 | What | Source |
 | --- | --- |
-| The basin's outline | USGS Watershed Boundary Dataset (the Lake Tahoe watershed) |
-| Trails | OpenStreetMap, plus the U.S. Forest Service's official trail inventory |
-| Lakes, wilderness areas, state parks, peaks, towns | OpenStreetMap |
-| Terrain and lake depth | AWS Terrain Tiles (USGS elevation data) |
-| The 2026 trail plan | The Forest Service's Basin Wide Trails Analysis project maps |
+| Park outlines | OpenStreetMap. Moore Creek is hand-drawn around its signed bike trails, because OpenStreetMap has no outline for the park. |
+| Trails | OpenStreetMap |
+| Lakes, the Russian River, peaks, towns | OpenStreetMap |
+| Terrain | AWS Terrain Tiles (USGS elevation data) |
 
 ## What counts as a trail
 
-The goal is to show the trails a hiker or mountain biker would actually use. The map includes:
+The goal is to show the trails a mountain biker or hiker would actually use in each park. The map includes **named** paths, trails, bridleways, and fire roads where at least half the trail is inside a park, or close enough to its edge to count (trailheads and connectors often start just outside). How close counts differs by park:
 
-- **Named** paths and trails that touch the basin, including dirt roads that are signed or designated as trails
-- **Forest Service inventory trails** that OpenStreetMap is missing
+| Park | Counts as part of the park |
+| --- | --- |
+| Monte Rio Redwoods | within 450 m of the preserve |
+| Trione-Annadel (with Spring Lake and Howarth parks) | within 120 m |
+| Moore Creek | within 150 m of the drawn outline |
 
 It leaves out:
 
-- climbing approaches
-- informal or private paths
-- paved bike paths
-- sidewalks
-- motorized, off-highway-vehicle, and winter-only routes
+- unnamed paths
+- informal or private paths, and anything marked closed to access
+- sidewalks and footpaths that aren't named as trails
 
-Trails that match the Forest Service's inventory get an **Official trail** stamp.
+Pieces of a trail that share a name and connect are joined into one trail.
 
-Pieces of a trail that share a name and connect are joined into one trail. The Tahoe Rim Trail, Pacific Crest Trail, and Tahoe–Yosemite Trail are always kept whole.
+Monte Rio's wide margin pulls in some trails on land next to the preserve, west and south of it. If a trail there isn't one you'd count, it can be excluded by name in `scripts/build-data.mjs`.
 
 ## How bike access is decided
 
-Bike access comes from the data when the data says:
-
-- OpenStreetMap bicycle tags, including mountain bike difficulty ratings
-- Forest Service management records
-
-When neither source says, the map makes an educated guess:
-
-- **Forest Service land:** bikes are assumed allowed
-- **Wilderness areas and state parks:** bikes are assumed not allowed
-- **Pacific Crest Trail:** never open to bikes
-
-Trail cards mark guessed access as "likely allowed".
+Bike access comes from OpenStreetMap's bicycle tags, including mountain bike difficulty ratings, when they're there. When they aren't, bikes are assumed allowed on trails and fire roads and not allowed on footpaths. Trail cards mark guessed access as "likely allowed".
 
 ## Limits
 
-- **Simplified terrain.** Terrain is sampled every 50 meters and heights are exaggerated about 2.3×, so slopes look steeper than they are. Climbing figures are estimates.
+- **Simplified terrain.** Terrain is sampled every 30 meters and heights are exaggerated 3×, so slopes look steeper than they are. Climbing figures are estimates from that terrain.
 - **Snapshots, not live data.** The map is only as current as the last time the data was refreshed. OpenStreetMap is updated by volunteers and can have gaps or errors.
-- **Nicknames aren't searchable.** Some well-known local names may not appear if the data files the trail under its official name. For example, "Mr. Toad's" is part of the Saxon Creek area.
+- **Narrow rivers are faint.** The Russian River is only a couple of terrain samples wide, so it shows up as a thin, pale line.
+- **Nicknames aren't searchable.** A trail is listed under the name it has in OpenStreetMap.
 
 Always confirm access and conditions with the land manager before heading out.

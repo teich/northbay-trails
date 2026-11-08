@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { EXAGGERATION, LAKE_LEVEL, Terrain, WORLD_SCALE, toWorld } from './data';
+import { Terrain, WORLD_SCALE, XY, toWorld } from './data';
 import { SIDE_FRAG, SIDE_VERT, TERRAIN_FRAG, TERRAIN_VERT, TREE_FRAG, TREE_VERT } from './shaders';
 
 export const LIGHT_DIR = new THREE.Vector3(-0.55, 0.9, -0.45).normalize();
-const BASE_ELEVATION = 1350; // bottom of the diorama block, meters
+const BASE_DEPTH = 150; // meters below the lowest point to the bottom of the diorama block
 
 export interface Landscape {
   group: THREE.Group;
@@ -22,7 +22,7 @@ export function buildLandscape(terrain: Terrain): Landscape {
   });
   group.add(new THREE.Mesh(buildSurface(terrain), terrainMat));
 
-  const base = ((BASE_ELEVATION - LAKE_LEVEL) / WORLD_SCALE) * EXAGGERATION;
+  const base = (-BASE_DEPTH / WORLD_SCALE) * terrain.map.exaggeration;
   const sideMat = new THREE.ShaderMaterial({
     vertexShader: SIDE_VERT,
     fragmentShader: SIDE_FRAG,
@@ -174,9 +174,13 @@ function buildMaskTexture(t: Terrain): THREE.Texture {
     lakes(ctx, w, h);
   }, 7);
   const basin = layer((ctx, w, h) => {
-    ctx.beginPath();
-    t.tracePath(ctx, t.map.basin, w, h);
-    ctx.fill();
+    for (const park of t.map.parks) {
+      for (const ring of park.rings) {
+        ctx.beginPath();
+        t.tracePath(ctx, ring, w, h);
+        ctx.fill();
+      }
+    }
   }, 2);
 
   // Texture rows start at the south edge (v = 0), canvas rows at the north
@@ -213,13 +217,13 @@ function buildTrees(t: Terrain): THREE.InstancedBufferGeometry {
   const scales: number[] = [];
   const tints: number[] = [];
   const { map } = t;
-  const tries = 160000;
+  const tries = 220000;
   const inBasin = basinTester(t);
   for (let n = 0; n < tries; n++) {
     const x = rand() * map.widthM;
     const y = rand() * map.heightM;
     const e = t.heightAt(x, y);
-    if (t.isWater(x, y) || e > 2800 + (rand() - 0.5) * 200) continue;
+    if (t.isWater(x, y)) continue;
     // slope from neighbors
     const s = 60;
     const dx = t.heightAt(x + s, y) - t.heightAt(x - s, y);
@@ -227,10 +231,13 @@ function buildTrees(t: Terrain): THREE.InstancedBufferGeometry {
     const slope = Math.hypot(dx, dy) / (2 * s);
     if (slope > 0.75 || slope < 0.02) continue;
     const clump = valueNoise(x / 1400, y / 1400) * 0.7 + valueNoise(x / 350, y / 350) * 0.3;
-    const threshold = inBasin(x, y) ? 0.5 : 0.62;
+    // more trees on north-facing slopes and toward the foggy west, fewer on sunny grass
+    const north = Math.max(0, Math.min(1, -dy / (2 * s) / 0.25));
+    const west = 1 - x / map.widthM;
+    const threshold = (inBasin(x, y) ? 0.5 : 0.62) + 0.12 - north * 0.18 - west * 0.14;
     if (clump < threshold + rand() * 0.15) continue;
-    // keep trees off the lakeshore towns-ish flats near the lake
-    if (e < LAKE_LEVEL + 15) continue;
+    // the valley floors are towns, vineyards and pasture: leave them mostly open
+    if (e < 70 + rand() * 60 && rand() > 0.15) continue;
     const [wx, wy, wz] = toWorld(map, x, y, e);
     offsets.push(wx, wy - 0.05, wz);
     scales.push(0.7 + rand() * 0.7);
@@ -248,8 +255,8 @@ function buildTrees(t: Terrain): THREE.InstancedBufferGeometry {
 }
 
 function basinTester(t: Terrain) {
-  const ring = t.map.basin;
-  return (x: number, y: number) => {
+  const rings: XY[][] = t.map.parks.flatMap((p) => p.rings);
+  const inRing = (ring: XY[], x: number, y: number) => {
     let inside = false;
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
       const [xi, yi] = ring[i];
@@ -258,6 +265,7 @@ function basinTester(t: Terrain) {
     }
     return inside;
   };
+  return (x: number, y: number) => rings.some((r) => inRing(r, x, y));
 }
 
 function mergeGeometries(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {

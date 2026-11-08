@@ -5,8 +5,9 @@ import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeome
 import { Terrain, Trail, toWorld } from './data';
 
 export const COLORS = {
-  bike: new THREE.Color('#d2532c'), // vermilion: open to bikes
+  bike: new THREE.Color('#d2532c'), // vermilion: open to bikes, still to ride
   hike: new THREE.Color('#6a3d6e'), // plum: foot traffic only
+  ridden: new THREE.Color('#1f7a6b'), // deep teal: ridden it
   selected: new THREE.Color('#f2b632'),
   halo: new THREE.Color('#fffaf0'),
 };
@@ -23,6 +24,7 @@ export const PLAN_COLORS = {
 const LIFT = 0.12; // world units above the ground so lines don't sink into the mesh
 
 export type Filter = 'all' | 'hike' | 'bike';
+export type Progress = 'all' | 'todo' | 'done';
 export type PlanGroup = 'new' | 'designate' | 'decommission';
 
 interface Style {
@@ -42,9 +44,15 @@ export function planGroup(t: Trail): PlanGroup | null {
   return t.plan.kind === 'designate' ? 'designate' : 'new';
 }
 
+let isRidden: (t: Trail) => boolean = () => false;
+/** Tell the trail styles how to know a trail has been ridden */
+export function setRiddenCheck(fn: (t: Trail) => boolean) {
+  isRidden = fn;
+}
+
 function styleKey(t: Trail): string {
   if (t.road) return 'road';
-  if (!t.plan) return t.bike ? 'bike' : 'hike';
+  if (!t.plan) return isRidden(t) ? 'ridden' : t.bike ? 'bike' : 'hike';
   const group = planGroup(t)!;
   if (group !== 'new') return group === 'designate' && t.plan.mode === 'moto' ? 'moto-designate' : group;
   return t.plan.mode === 'ebike' ? 'ebike' : t.plan.mode === 'moto' ? 'moto' : 'nonmoto';
@@ -54,6 +62,7 @@ const STYLES: Record<string, Style> = {
   road: { color: new THREE.Color('#f4ead6'), casing: new THREE.Color('#7c6858'), width: 2, dashed: false, wash: false, renderOrder: 0.5 },
   bike: { color: COLORS.bike, width: 2, dashed: false, wash: false, renderOrder: 1 },
   hike: { color: COLORS.hike, width: 2, dashed: true, wash: false, renderOrder: 1 },
+  ridden: { color: COLORS.ridden, width: 2.2, dashed: false, wash: false, renderOrder: 1.1 },
   ebike: { color: new THREE.Color(PLAN_COLORS.ebike), width: 3.2, dashed: true, wash: true, renderOrder: 3 },
   nonmoto: { color: new THREE.Color(PLAN_COLORS.nonmoto), width: 3.2, dashed: true, wash: true, renderOrder: 3 },
   moto: { color: new THREE.Color(PLAN_COLORS.moto), width: 3.2, dashed: true, wash: true, renderOrder: 3 },
@@ -76,6 +85,7 @@ export class TrailLayer {
   private projected: { trail: number; pts: Float32Array }[] = [];
   private projectedFor = '';
   filter: Filter = 'all';
+  progress: Progress = 'all';
   /** Which planned-change groups are shown; empty means the plan overlay is off */
   plans = new Set<PlanGroup>();
 
@@ -162,36 +172,21 @@ export class TrailLayer {
     return l;
   }
 
-  /** Line segments for these trails. `reveal` < 1 keeps only that fraction of each trail, measured
-   * along its length from the start (or from the end, with `reverse`), for "drawing on" a trail. */
-  private segmentsFor(ids: number[], reveal = 1, reverse = false) {
+  /** Line segments (pairs of points) for these trails */
+  private segmentsFor(ids: number[]) {
     const out: number[] = [];
     for (const id of ids) {
-      const lines = reverse ? [...this.world[id]].reverse() : this.world[id];
-      let total = 0;
-      for (const line of lines) for (let i = 0; i < line.length - 3; i += 3) total += segLength(line, i);
-      let budget = total * reveal;
-      for (const line of lines) {
-        const idx = Array.from({ length: line.length / 3 - 1 }, (_, k) => k * 3);
-        if (reverse) idx.reverse();
-        for (const i of idx) {
-          if (budget <= 0) break;
-          const len = segLength(line, i);
-          const [a, b] = reverse ? [i + 3, i] : [i, i + 3];
-          const t = Math.min(1, budget / len);
-          out.push(line[a], line[a + 1], line[a + 2]);
-          for (let k = 0; k < 3; k++) out.push(line[a + k] + (line[b + k] - line[a + k]) * t);
-          budget -= len;
-        }
+      for (const line of this.world[id]) {
+        for (let i = 0; i < line.length - 3; i += 3) out.push(line[i], line[i + 1], line[i + 2], line[i + 3], line[i + 4], line[i + 5]);
       }
     }
     return new Float32Array(out);
   }
 
-  private setLines(l: LineSegments2, ids: number[], reveal = 1, reverse = false) {
+  private setLines(l: LineSegments2, ids: number[]) {
     l.geometry.dispose();
     const g = new LineSegmentsGeometry();
-    const segs = this.segmentsFor(ids, reveal, reverse);
+    const segs = this.segmentsFor(ids);
     if (segs.length) {
       g.setPositions(segs);
       l.geometry = g;
@@ -206,6 +201,7 @@ export class TrailLayer {
     if (group && !this.plans.has(group)) return false;
     // decommissioned trails aren't open to anyone, but they belong in every view of the plan
     if (group === 'decommission') return true;
+    if (this.progress !== 'all' && !t.plan && isRidden(t) !== (this.progress === 'done')) return false;
     if (this.filter === 'bike') return t.bike || t.bikePartial;
     if (this.filter === 'hike') return t.hike;
     return true;
@@ -227,7 +223,7 @@ export class TrailLayer {
     }
     // Existing trails step back while the plan overlay is up
     const dim = this.plans.size > 0;
-    for (const key of ['bike', 'hike']) this.base.get(key)!.line.material.opacity = dim ? 0.4 : 0.95;
+    for (const key of ['bike', 'hike', 'ridden']) this.base.get(key)!.line.material.opacity = dim ? 0.4 : 0.95;
     this.projectedFor = '';
   }
 
@@ -241,19 +237,13 @@ export class TrailLayer {
     this.setLines(this.hover.line, [id]);
   }
 
-  setSelected(id: number | null, reveal = 1, reverse = false) {
-    if (id === null || reveal <= 0) {
+  setSelected(id: number | null) {
+    if (id === null) {
       this.selected.halo.visible = this.selected.line.visible = false;
       return;
     }
-    this.setLines(this.selected.halo, [id], reveal, reverse);
-    this.setLines(this.selected.line, [id], reveal, reverse);
-  }
-
-  /** Fade the everyday trail lines (0 = normal, 1 = nearly gone), for spotlighting one trail */
-  setBaseFade(f: number) {
-    const base = this.plans.size > 0 ? 0.4 : 0.95;
-    for (const key of ['bike', 'hike']) this.base.get(key)!.line.material.opacity = base * (1 - 0.75 * f);
+    this.setLines(this.selected.halo, [id]);
+    this.setLines(this.selected.line, [id]);
   }
 
   /** Keep dashes a constant on-screen size as the camera zooms */
@@ -332,8 +322,4 @@ export class TrailLayer {
       }
     }
   }
-}
-
-function segLength(line: Float32Array, i: number) {
-  return Math.hypot(line[i + 3] - line[i], line[i + 4] - line[i + 1], line[i + 5] - line[i + 2]);
 }

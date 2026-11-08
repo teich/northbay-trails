@@ -20,7 +20,7 @@ const browser = await puppeteer.launch({
   args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'],
 });
 
-// --- 1200×630 preview card: the painted basin on the right, the title on the left
+// --- 1200×630 preview card: the painted region on the right, the title on the left
 const page = await browser.newPage();
 await page.setViewport({ width: 1200, height: 630, deviceScaleFactor: 1 });
 await page.goto(APP_URL, { waitUntil: 'networkidle0' });
@@ -41,9 +41,8 @@ await page.evaluate(() => {
   const el = document.createElement('div');
   el.id = 'og-title';
   el.innerHTML = `
-    <h1><span class="wash"></span>Tahoe<br><em>Trails</em></h1>
-    <p>A watercolor map of the hiking &amp; mountain bike trails around Lake Tahoe</p>
-    <p class="url">trails-fun.warpspire.com</p>`;
+    <h1><span class="wash"></span>North Bay<br><em>Trails</em></h1>
+    <p>A watercolor map of the mountain bike trails at Monte Rio, Annadel &amp; Moore Creek</p>`;
   const fade = document.createElement('div');
   fade.id = 'og-fade';
   document.body.append(fade, el);

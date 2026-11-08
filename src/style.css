@@ -379,7 +379,7 @@ h1 .wash {
 .swatch.basin {
   height: 12px;
   border-radius: 4px;
-  background: linear-gradient(90deg, #76a06a, #7bb7c1);
+  background: linear-gradient(90deg, #c9a85a, #4f7a55);
   opacity: 0.8;
 }
 
@@ -1055,40 +1055,156 @@ body.clean :is(#panel, #builders, #card, #legend, #legend-plan, #controls, #hint
   transform: translate(-50%, 0);
 }
 
-/* ---------- film mode (?film): frame-by-frame rendering for movies */
-body.film .label {
-  transition: none; /* each frame is posed exactly; nothing should animate on its own */
+/* ---------- North Bay: parks, ride progress, ridden checkboxes */
+:root {
+  --ridden: #1f7a6b;
 }
-#film-caption {
-  position: fixed;
-  left: 64px;
-  bottom: 56px;
-  max-width: 900px;
-  opacity: 0;
-  pointer-events: none;
-  z-index: 30;
+.parks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 18px 10px;
 }
-#film-caption h2 {
-  margin: 0;
-  font-family: var(--display);
+.parks button {
+  border: 1.5px solid var(--line);
+  background: transparent;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-family: var(--body);
+  font-size: 13px;
   font-weight: 700;
-  font-size: 52px;
-  line-height: 1;
-  letter-spacing: -0.01em;
-  font-variation-settings: 'SOFT' 100, 'WONK' 1;
-  color: #23405e;
-  text-shadow:
-    0 0 12px var(--paper-2),
-    0 0 24px var(--paper-2),
-    0 0 40px rgba(251, 247, 238, 0.9);
+  color: var(--ink-soft);
+  cursor: pointer;
 }
-#film-caption p {
-  margin: 10px 0 0;
-  font-family: var(--hand);
-  font-size: 30px;
-  font-weight: 700;
+.parks button:hover {
   color: var(--ink);
-  text-shadow:
-    0 0 10px var(--paper-2),
-    0 0 20px var(--paper-2);
+}
+.parks button.on {
+  background: var(--ridden);
+  border-color: var(--ridden);
+  color: var(--paper-2);
+}
+#progress {
+  padding: 0 18px 12px;
+}
+#progress .bar {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bike) 18%, var(--paper));
+  overflow: hidden;
+}
+#progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--ridden);
+  transition: width 0.4s ease;
+}
+#progress-text {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+#progress-text b {
+  color: var(--ink);
+}
+.progress-filters {
+  padding-top: 8px;
+}
+.ride-check {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1.8px solid color-mix(in srgb, var(--ink-soft) 55%, transparent);
+  background: var(--paper-2);
+  color: var(--paper-2);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.ride-check:hover {
+  border-color: var(--ridden);
+}
+.ride-check[aria-pressed='true'] {
+  background: var(--ridden);
+  border-color: var(--ridden);
+}
+#trail-list li.ridden .li-name {
+  color: var(--ink-soft);
+}
+.swatch.ridden {
+  background: var(--ridden);
+}
+.ride-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 4px 0 10px;
+  padding: 8px 12px;
+  border: 1.5px dashed var(--line);
+  border-radius: 12px;
+  background: transparent;
+  font-family: var(--body);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.ride-toggle small {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.ride-toggle .box {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 2px solid color-mix(in srgb, var(--ink-soft) 55%, transparent);
+  display: grid;
+  place-items: center;
+  color: var(--paper-2);
+}
+.ride-toggle.on {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--ridden) 45%, transparent);
+  background: color-mix(in srgb, var(--ridden) 9%, transparent);
+}
+.ride-toggle.on .box {
+  background: var(--ridden);
+  border-color: var(--ridden);
+}
+.rides-io {
+  margin: 0;
+  padding: 8px 18px 12px;
+  border-top: 1px dashed var(--line);
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--lake);
+  cursor: pointer;
+}
+.link-btn:hover {
+  text-decoration: underline;
+}
+.label-park {
+  font-family: var(--display);
+  font-size: 17px;
+  font-weight: 700;
+  font-style: italic;
+  color: var(--ridden);
 }

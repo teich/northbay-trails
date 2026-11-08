@@ -2,28 +2,7 @@ import * as THREE from 'three';
 import { Label, Terrain, Trailhead, toWorld } from './data';
 
 // Peaks worth naming even when zoomed all the way out
-const FAMOUS = new Set([
-  'Mount Tallac',
-  'Freel Peak',
-  'Mount Rose',
-  'Pyramid Peak',
-  'Jobs Sister',
-  'Dicks Peak',
-  'Ellis Peak',
-  'Twin Peaks',
-  'Genoa Peak',
-  'Snow Valley Peak',
-  'Rubicon Peak',
-  'Slide Mountain',
-  'Relay Peak',
-  'Monument Peak',
-  'Ralston Peak',
-  'Maggies Peaks',
-  'Stevens Peak',
-  'Round Top',
-  'Mount Price',
-  'Marlette Peak',
-]);
+const FAMOUS = new Set(['Bennett Mountain', 'Hood Mountain', 'Mount Hood', 'Taylor Mountain', 'Mount Jackson', 'Pine Mountain', 'Conn Peak', 'Atlas Peak']);
 
 interface Placed {
   label: Label;
@@ -46,12 +25,19 @@ export class Labels {
   ) {
     const seen = new Set<string>();
     const planned: Label[] = trailheads.map((t) => ({ kind: 'trailhead', name: t.name, x: t.x, y: t.y }));
+    // Park names, at the middle of each park's biggest piece
+    for (const park of terrain.map.parks) {
+      const ring = park.rings.reduce((a, b) => (b.length > a.length ? b : a));
+      const x = ring.reduce((a, p) => a + p[0], 0) / ring.length;
+      const y = ring.reduce((a, p) => a + p[1], 0) / ring.length;
+      planned.push({ kind: 'park', name: park.long, x, y });
+    }
     for (const label of [...terrain.map.labels, ...planned]) {
       const key = `${label.kind}:${label.name}`;
       if (seen.has(key) && label.kind !== 'peak') continue;
       seen.add(key);
       const el = document.createElement('div');
-      el.className = `label label-${label.kind}${label.name === 'Lake Tahoe' ? ' big' : ''}`;
+      el.className = `label label-${label.kind}`;
       el.innerHTML =
         label.kind === 'peak'
           ? `<span class="peak-mark">▲</span><span class="peak-name">${label.name}</span><span class="peak-ele">${Math.round((label.ele ?? 0) * 3.28084).toLocaleString()}′</span>`
@@ -62,10 +48,11 @@ export class Labels {
       const ele = label.kind === 'lake' ? terrain.heightAt(label.x, label.y) : terrain.heightAt(label.x, label.y) + 20;
       const [x, y, z] = toWorld(terrain.map, label.x, label.y, ele);
       let priority = 0;
+      if (label.kind === 'park') priority = 250;
       if (label.kind === 'town') priority = 90;
       if (label.kind === 'village') priority = 55;
-      if (label.kind === 'lake') priority = label.name === 'Lake Tahoe' ? 200 : 20 + Math.log10(label.area ?? 1) * 8;
-      if (label.kind === 'peak') priority = (FAMOUS.has(label.name) ? 70 : 0) + ((label.ele ?? 2000) - 2000) / 40;
+      if (label.kind === 'lake') priority = 20 + Math.log10(label.area ?? 1) * 8;
+      if (label.kind === 'peak') priority = (FAMOUS.has(label.name) ? 70 : 0) + (label.ele ?? 0) / 15;
       if (label.kind === 'trailhead') priority = 300;
       if (label.kind === 'road') priority = 45;
       this.items.push({ label, el, world: new THREE.Vector3(x, y, z), priority, w: 0, h: 0 });

@@ -3,24 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tahoe Trails</title>
-    <meta name="description" content="A watercolor, isometric map of the hiking and mountain bike trails in the Lake Tahoe Basin, including the trails approved to be built next." />
+    <title>North Bay Trails</title>
+    <meta name="description" content="A watercolor, isometric map of the mountain bike trails at Monte Rio Redwoods, Trione-Annadel and Moore Creek, with a checklist of what you've ridden." />
     <meta name="theme-color" content="#f6efe0" />
-    <link rel="canonical" href="https://trails-fun.warpspire.com/" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-
-    <!-- Link previews (iMessage, Slack, Facebook, LinkedIn, …). Image is made by `npm run social`. -->
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Tahoe Trails" />
-    <meta property="og:url" content="https://trails-fun.warpspire.com/" />
-    <meta property="og:title" content="Tahoe Trails" />
-    <meta property="og:description" content="A watercolor map of the hiking &amp; mountain bike trails around Lake Tahoe. Search, click, and explore, including the trails approved to be built next." />
-    <meta property="og:image" content="https://trails-fun.warpspire.com/og-image.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="A watercolor, isometric painting of the Lake Tahoe Basin with its trails drawn in vermilion." />
-    <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -35,9 +22,14 @@
 
     <aside id="panel">
       <header>
-        <h1><span class="wash"></span>Tahoe <em>Trails</em></h1>
+        <h1><span class="wash"></span>North Bay <em>Trails</em></h1>
         <p id="stats" class="sub">Loading trails…</p>
       </header>
+      <div id="parks" class="parks" role="group" aria-label="Jump to a park"></div>
+      <div id="progress">
+        <div class="bar"><div id="progress-fill"></div></div>
+        <p id="progress-text"></p>
+      </div>
       <div class="search-wrap">
         <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5 21 21" /></svg>
         <input id="search" type="search" placeholder="Find a trail…" autocomplete="off" spellcheck="false" aria-label="Search trails" />
@@ -50,7 +42,12 @@
         <button data-filter="bike">🚵 Bike</button>
         <span id="result-count"></span>
       </div>
-      <div class="plan-toggle">
+      <div class="filters progress-filters" role="group" aria-label="Show ridden or unridden trails">
+        <button data-progress="all" class="on">Everything</button>
+        <button data-progress="todo">To ride</button>
+        <button data-progress="done">✓ Ridden</button>
+      </div>
+      <div class="plan-toggle" hidden>
         <button id="plan-btn" aria-pressed="false">
           <span class="plan-label"><b>✦ 2026 trail plan</b><small>What the Forest Service approved to build</small></span>
           <span class="switch" aria-hidden="true"></span>
@@ -62,20 +59,17 @@
         </div>
       </div>
       <ul id="trail-list"></ul>
+      <p class="rides-io">Your ridden list lives in this browser. <button id="rides-export" class="link-btn">Export</button> · <button id="rides-import" class="link-btn">Import</button><input id="rides-file" type="file" accept="application/json,.json" hidden /></p>
     </aside>
 
-    <aside id="builders" aria-label="Trail builders">
-      <span>Trails built &amp; cared for by</span>
-      <a href="https://tamba.org/" target="_blank" rel="noopener" title="Tahoe Area Mountain Biking Association">TAMBA</a>
-      <a href="https://tahoerimtrail.org/" target="_blank" rel="noopener" title="Tahoe Rim Trail Association">Tahoe Rim Trail Association</a>
-    </aside>
 
     <section id="card" aria-live="polite"></section>
 
     <div id="legend">
-      <div><span class="swatch bike"></span>Open to bikes &amp; hikers</div>
+      <div><span class="swatch bike"></span>To ride</div>
+      <div><span class="swatch ridden"></span>Ridden</div>
       <div><span class="swatch hike"></span>Foot traffic only</div>
-      <div><span class="swatch basin"></span>Lake Tahoe Basin</div>
+      <div><span class="swatch basin"></span>Park</div>
     </div>
     <div id="legend-plan" hidden>
       <div><span class="swatch plan-ebike"></span>New · bikes &amp; e-bikes</div>
@@ -98,10 +92,9 @@
     <p id="hint">Drag to pan · scroll to zoom · right-drag to spin · U hides the interface</p>
     <div id="toast" role="status" aria-live="polite"></div>
     <footer id="attribution">
-      <a class="byline" href="https://warpspire.com/" target="_blank" rel="noopener">Made by Kyle Aster</a>
-      Trails © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors &amp;
-      <a href="https://data.fs.usda.gov/geodata/edw/datasets.php" target="_blank" rel="noopener">USDA Forest Service</a> · Basin: USGS WBD ·
-      Elevation: AWS Terrain Tiles. Check trail conditions and closures before heading out.
+      Forked from <a href="https://trails-fun.warpspire.com/" target="_blank" rel="noopener">Tahoe Trails</a> by Kyle Aster ·
+      Trails © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors ·
+      Elevation: AWS Terrain Tiles. Check trail conditions and closures (Annadel closes after rain) before heading out.
     </footer>
 
     <div id="loading"><div class="blob"></div><p>Mixing the paints…</p></div>

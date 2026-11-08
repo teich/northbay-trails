@@ -8,10 +8,11 @@ export interface Lake {
   level: number;
   outer: XY[];
   inner: XY[][];
+  river?: boolean;
 }
 
 export interface Label {
-  kind: 'peak' | 'town' | 'village' | 'lake' | 'trailhead' | 'road';
+  kind: 'peak' | 'town' | 'village' | 'lake' | 'trailhead' | 'road' | 'park';
   name: string;
   x: number;
   y: number;
@@ -25,13 +26,24 @@ export interface MapData {
   heightM: number;
   grid: { width: number; height: number; spacing: number; scale: number };
   elevation: { min: number; max: number };
-  basin: XY[];
+  /** Elevation (m) that sits at world y = 0 */
+  datum: number;
+  exaggeration: number;
+  /** The parks whose trails are drawn; everything else is painted as faded context */
+  parks: Park[];
   lakes: Lake[];
   wilderness: { name: string; rings: XY[][] }[];
   /** A few named roads drawn for context; not trails */
   roads: (Pick<Trail, 'name' | 'lengthMi' | 'gainFt' | 'lossFt' | 'minFt' | 'maxFt' | 'lines'> & { surface: string })[];
   labels: Label[];
   attribution: string[];
+}
+
+export interface Park {
+  id: string;
+  name: string;
+  long: string;
+  rings: XY[][];
 }
 
 export type PlanKind = 'new' | 'designate' | 'adopt' | 'decommission';
@@ -66,6 +78,10 @@ export interface Trail {
   plan?: Plan;
   /** A context road: drawn on the map, but not listed, counted, or clickable */
   road?: boolean;
+  /** Park id (see MapData.parks) */
+  park?: string;
+  /** Every piece is a dirt road / fire road */
+  fireRoad?: boolean;
   name: string;
   area?: string;
   hike: boolean;
@@ -89,9 +105,7 @@ export interface Trail {
   lines: number[][];
 }
 
-export const LAKE_LEVEL = 1898; // Lake Tahoe surface, meters
 export const WORLD_SCALE = 100; // meters per world unit
-export const EXAGGERATION = 2.3; // vertical exaggeration, for drama
 
 export class Terrain {
   readonly heights: Float32Array;
@@ -191,16 +205,17 @@ export class Terrain {
 
 // Local meters → world units. North is -Z, east is +X, up is +Y.
 export function toWorld(map: MapData, x: number, y: number, ele: number): [number, number, number] {
-  return [(x - map.widthM / 2) / WORLD_SCALE, ((ele - LAKE_LEVEL) / WORLD_SCALE) * EXAGGERATION, -(y - map.heightM / 2) / WORLD_SCALE];
+  return [(x - map.widthM / 2) / WORLD_SCALE, ((ele - map.datum) / WORLD_SCALE) * map.exaggeration, -(y - map.heightM / 2) / WORLD_SCALE];
 }
 
 export async function loadData() {
-  const [map, trails, future, terrainBuf] = await Promise.all([
+  const [map, trails, terrainBuf] = await Promise.all([
     fetch('data/map.json').then((r) => r.json() as Promise<MapData>),
     fetch('data/trails.json').then((r) => r.json() as Promise<Trail[]>),
-    fetch('data/future.json').then((r) => r.json() as Promise<FutureData>),
     fetch('data/terrain.bin').then((r) => r.arrayBuffer()),
   ]);
+  // No planned-trail overlay for the North Bay (yet); the Tahoe plan code stays dormant.
+  const future: FutureData = { project: '', decision: '', source: '', plans: [], trailheads: [] };
   // Planned trails join the same list (ids continue after existing trails) so they can be
   // drawn, picked, searched, and shown in the card like any other trail.
   for (const p of future.plans) {

@@ -6,15 +6,16 @@ import { loadData, toWorld } from './data';
 import { Labels } from './labels';
 import { POST_FRAG, POST_VERT } from './shaders';
 import { buildLandscape } from './terrain';
-import { TrailLayer, planGroup } from './trails';
+import { Rides } from './rides';
+import { TrailLayer, planGroup, setRiddenCheck } from './trails';
 import { UI, planSummary } from './ui';
 
 const VIEW_HEIGHT = 330; // world units visible vertically at zoom 1
 const POLAR = 0.98; // camera tilt from vertical (radians) — close to true isometric
-const HOME_AZIMUTH = 1.2; // looking west across the lake from the Nevada side
+const HOME_AZIMUTH = 0.35; // looking north-ish from the south, so the long east–west strip runs across the screen
 
 type Padding = { left: number; right: number; top: number; bottom: number };
-export interface View {
+interface View {
   target: THREE.Vector3;
   zoom: number;
   azimuth: number;
@@ -47,8 +48,10 @@ async function main() {
   controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
   controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
 
+  const rides = new Rides();
+  setRiddenCheck((t) => rides.has(t));
   const landscape = buildLandscape(terrain);
-  
+
   scene.add(landscape.group);
   const trailLayer = new TrailLayer(trails, terrain);
   scene.add(trailLayer.group);
@@ -204,8 +207,16 @@ async function main() {
     flyTo(computeView(box, pad, az, polar));
   }
 
-  // The basin outline, as a world-space box, is what "home" frames.
-  const basinPoints = map.basin.map(([x, y]) => new THREE.Vector3(...toWorld(map, x, y, terrain.heightAt(x, y))));
+  // "Home" frames the whole painted region; each park button frames that park.
+  const ringPoints = (rings: [number, number][][]) =>
+    rings.flat().map(([x, y]) => new THREE.Vector3(...toWorld(map, x, y, terrain.heightAt(x, y))));
+  const edge: [number, number][] = [];
+  for (let k = 0; k <= 8; k++) {
+    const f = k / 8;
+    edge.push([f * map.widthM, 0], [f * map.widthM, map.heightM], [0, f * map.heightM], [map.widthM, f * map.heightM]);
+  }
+  const basinPoints = ringPoints([edge]);
+  const parkPoints = new Map(map.parks.map((p) => [p.id, ringPoints(p.rings)]));
 
   const HOME_PAD: Padding = { left: 370, right: 100, top: 40, bottom: 60 };
   function home() {
@@ -228,12 +239,29 @@ async function main() {
   let focus = 0;
   let focusTarget = 0;
 
-  const ui = new UI(trails, {
+  const ui = new UI(trails, map.parks, rides, {
     onSelect: (id, opts) => select(id, opts),
     onHover: (id) => setHover(id),
     onFilter: (f) => {
       trailLayer.filter = f;
       trailLayer.rebuildBase();
+      dirty = true;
+    },
+    onProgress: (p) => {
+      trailLayer.progress = p;
+      trailLayer.rebuildBase();
+      if (selected !== null && !trailLayer.matches(trails[selected])) select(null);
+      dirty = true;
+    },
+    onPark: (id) => {
+      if (selected !== null) select(null);
+      if (id) frameBox(parkPoints.get(id)!, { left: 380, right: 80, top: 60, bottom: 60 });
+      else home();
+      history.replaceState(null, '', id ? `#park=${id}` : location.pathname);
+    },
+    onRidden: () => {
+      trailLayer.rebuildBase();
+      if (hovered !== null) trailLayer.setHover(hovered === selected ? null : hovered);
       dirty = true;
     },
     onPlans: (groups) => {
@@ -307,7 +335,7 @@ async function main() {
     setHover(id);
     if (id !== null) {
       const t = trails[id];
-      const kind = t.plan ? `planned: ${planSummary(t)}` : t.bike ? 'hike & bike' : 'hike only';
+      const kind = t.plan ? `planned: ${planSummary(t)}` : rides.has(t) ? '✓ ridden' : t.bike ? 'to ride' : 'hike only';
       tooltip.innerHTML = `<strong>${t.name}</strong><span>${t.lengthMi} mi · ${kind}</span>`;
       tooltip.style.transform = `translate(${pointer.x + 16}px, ${pointer.y + 14}px)`;
       tooltip.classList.add('visible');
@@ -384,37 +412,6 @@ async function main() {
   window.addEventListener('resize', resize);
   resize();
 
-  // ?film: a frame-by-frame mode for rendering movies (see scripts/film.mjs). No interface,
-  // no render loop; the film script sets up each frame and asks for it to be drawn.
-  if (new URLSearchParams(location.search).has('film')) {
-    document.body.classList.add('clean', 'film');
-    const { installFilm } = await import('./film');
-    installFilm({
-      scene,
-      camera,
-      map,
-      terrain,
-      trails,
-      trailLayer,
-      landscape,
-      placeCamera,
-      homeView: () => computeView(basinPoints, { left: 60, right: 60, top: 40, bottom: 40 }, HOME_AZIMUTH, POLAR),
-      trailView: (id, pad, azimuth = HOME_AZIMUTH) => computeView(trailLayer.bounds(id), pad, azimuth, POLAR),
-      fitView: (points, pad, azimuth = HOME_AZIMUTH) => computeView(points, pad, azimuth, POLAR),
-      render() {
-        trailLayer.setPixelsPerUnit((height / VIEW_HEIGHT) * camera.zoom);
-        renderer.setRenderTarget(target);
-        renderer.render(scene, camera);
-        renderer.setRenderTarget(null);
-        renderer.render(postScene, postCamera);
-        labels.update(camera, width, height);
-      },
-      pixelsPerUnit: () => (height / VIEW_HEIGHT) * camera.zoom,
-    });
-    loading.classList.add('done');
-    return;
-  }
-
   camera.zoom = 0.7;
   camera.updateProjectionMatrix();
   placeCamera(HOME_AZIMUTH + 0.5, POLAR - 0.1, new THREE.Vector3(0, 0, 0));
@@ -422,7 +419,9 @@ async function main() {
   loading.classList.add('done');
   setTimeout(home, 150);
 
-  // deep links: #trail=<name> or #plan=<name>
+  // deep links: #park=<id>, #trail=<name> or #plan=<name>
+  const parkLink = location.hash.match(/^#park=(.+)$/);
+  if (parkLink && parkPoints.has(parkLink[1])) setTimeout(() => ui.setPark(parkLink[1]), 1300);
   const link = location.hash.match(/^#(trail|plan)=(.+)$/);
   if (link) {
     const name = decodeURIComponent(link[2]).toLowerCase();

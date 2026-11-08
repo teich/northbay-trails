@@ -87,28 +87,29 @@ void main() {
   float mid = fbm(p * 0.22 + 4.0);     // mid-scale patches
   float grain = vnoise(p * 9.0);       // pigment granulation
 
-  // --- land palette
-  vec3 meadow = vec3(0.80, 0.81, 0.52);
-  vec3 forest = vec3(0.45, 0.60, 0.38);
-  vec3 deepForest = vec3(0.26, 0.43, 0.35);
-  vec3 granite = vec3(0.84, 0.79, 0.70);
-  vec3 rock = vec3(0.70, 0.62, 0.63);
-  vec3 snow = vec3(0.98, 0.97, 0.95);
-  vec3 sage = vec3(0.66, 0.68, 0.50);
+  // --- land palette: North Bay hills. Golden grass on the sunny slopes, oak woodland in
+  // patches, dark fir and redwood forest on north-facing slopes and toward the wetter west.
+  vec3 grass = vec3(0.87, 0.76, 0.47);
+  vec3 dryGrass = vec3(0.90, 0.82, 0.58);
+  vec3 oak = vec3(0.55, 0.60, 0.37);
+  vec3 forest = vec3(0.36, 0.52, 0.36);
+  vec3 redwood = vec3(0.22, 0.40, 0.33);
+  vec3 chaparral = vec3(0.60, 0.58, 0.43);
+  vec3 valley = vec3(0.76, 0.78, 0.53);
 
-  float treeline = 2750.0 + (wash - 0.5) * 300.0;
-  vec3 col = mix(forest, deepForest, smoothstep(0.35, 0.75, mid));
-  // Drier, sagebrush-y east side at lower elevations
-  col = mix(col, sage, smoothstep(0.52, 0.7, vUv.x + (wash - 0.5) * 0.3) * smoothstep(2500.0, 2100.0, e) * 0.7);
-  // Meadows on flat, low ground
-  float flat_ = smoothstep(0.035, 0.008, slope) * smoothstep(2500.0, 2000.0, e);
-  col = mix(col, meadow, flat_ * smoothstep(0.35, 0.6, mid + 0.15));
-  // Granite slabs: steep ground and exposed patches up high (hello, Desolation)
-  float granitePatch = smoothstep(0.55, 0.72, mid + (e - 2350.0) / 1400.0 + slope * 0.9);
-  col = mix(col, granite, granitePatch);
-  float alpine = smoothstep(treeline - 80.0, treeline + 120.0, e);
-  col = mix(col, mix(granite, rock, smoothstep(0.4, 0.7, wash)), alpine);
-  col = mix(col, snow, smoothstep(3080.0, 3250.0, e + (mid - 0.5) * 200.0) * 0.8);
+  float north = smoothstep(-0.04, 0.22, -n.z);   // north is -Z
+  float west = 1.0 - vUv.x;
+  vec3 col = mix(grass, dryGrass, smoothstep(0.4, 0.75, wash));
+  // Oak woodland scattered through the grass
+  col = mix(col, oak, smoothstep(0.5, 0.68, mid + slope * 0.6) * 0.9);
+  // Brushy chaparral on steep, sunny ridges
+  col = mix(col, chaparral, smoothstep(0.25, 0.45, slope) * (1.0 - north) * 0.6);
+  // Forest: north-facing, steep, and the foggy west
+  float woods = smoothstep(0.42, 0.68, north * 0.55 + west * 0.5 + (mid - 0.5) * 0.7 + slope * 0.8 + (wash - 0.5) * 0.3);
+  col = mix(col, mix(forest, redwood, smoothstep(0.45, 0.8, west + (mid - 0.5) * 0.4)), woods);
+  // Valley floors: vineyards, pasture, towns
+  float flat_ = smoothstep(0.03, 0.006, slope) * smoothstep(140.0, 60.0, e + (wash - 0.5) * 60.0);
+  col = mix(col, valley, flat_ * 0.85);
 
   col = paint(col, n, p, mid);
 
@@ -134,7 +135,7 @@ void main() {
 
   // Outside the basin: fade to a pale, unfinished wash
   float basin = mask.b;
-  vec3 faded = mix(PAPER, col, 0.32) * vec3(0.99, 0.98, 0.97);
+  vec3 faded = mix(PAPER, col, 0.6) * vec3(0.99, 0.98, 0.97);
   col = mix(faded, col, basin);
 
   col = mix(col, mix(PAPER, col, 0.55), uFocus * 0.7);

@@ -1,10 +1,16 @@
-import { Trail } from './data';
-import { Filter, PlanGroup, planGroup, trailColor } from './trails';
+import { Park, Trail } from './data';
+import { Rides } from './rides';
+import { Filter, PlanGroup, Progress, planGroup, trailColor } from './trails';
 
 interface Handlers {
   onSelect: (id: number | null, opts?: { fly?: boolean }) => void;
   onHover: (id: number | null) => void;
   onFilter: (f: Filter) => void;
+  onProgress: (p: Progress) => void;
+  /** a park chip was picked (null = the whole region) */
+  onPark: (id: string | null) => void;
+  /** the ridden log changed */
+  onRidden: () => void;
   onPlans: (groups: Set<PlanGroup>) => void;
   /** whether a trail is visible under the current filter + plan overlay */
   matches: (t: Trail) => boolean;
@@ -25,6 +31,8 @@ const norm = (s: string) =>
 
 export class UI {
   private filter: Filter = 'all';
+  private progress: Progress = 'all';
+  private park: string | null = null;
   private plansOn = false;
   private planGroups = new Set<PlanGroup>(['new', 'decommission']);
   private query = '';
@@ -37,6 +45,8 @@ export class UI {
 
   constructor(
     private trails: Trail[],
+    private parks: Park[],
+    private rides: Rides,
     private h: Handlers,
   ) {
     this.search.addEventListener('input', () => {
@@ -85,6 +95,45 @@ export class UI {
       });
     }
 
+    for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-progress]')) {
+      btn.addEventListener('click', () => {
+        this.progress = btn.dataset.progress as Progress;
+        document.querySelectorAll('[data-progress]').forEach((b) => b.classList.toggle('on', b === btn));
+        this.h.onProgress(this.progress);
+        this.render();
+      });
+    }
+
+    const parkBar = $('#parks');
+    parkBar.innerHTML =
+      `<button data-park="" class="on">Everywhere</button>` +
+      parks.map((p) => `<button data-park="${p.id}" title="${escape(p.long)}">${escape(p.name)}</button>`).join('');
+    parkBar.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-park]');
+      if (btn) this.setPark(btn.dataset.park || null);
+    });
+
+    rides.onChange(() => {
+      this.updateProgress();
+      this.render();
+      if (this.selected !== null) this.updateRideButton(this.trails[this.selected]);
+      this.h.onRidden();
+    });
+    $('#rides-export').addEventListener('click', () => rides.export());
+    const file = $<HTMLInputElement>('#rides-file');
+    $('#rides-import').addEventListener('click', () => file.click());
+    file.addEventListener('change', async () => {
+      const f = file.files?.[0];
+      if (!f) return;
+      try {
+        const added = rides.import(await f.text());
+        alert(`Imported. ${added} more trail${added === 1 ? '' : 's'} marked ridden.`);
+      } catch (err) {
+        alert(`Couldn't read that file: ${(err as Error).message}`);
+      }
+      file.value = '';
+    });
+
     const planBtn = $('#plan-btn');
     planBtn.addEventListener('click', () => this.setPlans(!this.plansOn));
     for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-plan]')) {
@@ -99,6 +148,12 @@ export class UI {
     }
 
     this.list.addEventListener('click', (e) => {
+      const check = (e.target as HTMLElement).closest<HTMLElement>('[data-ride]');
+      if (check) {
+        e.stopPropagation();
+        this.rides.toggle(this.trails[Number(check.dataset.ride)]);
+        return;
+      }
       const li = (e.target as HTMLElement).closest<HTMLElement>('[data-id]');
       if (li) this.h.onSelect(Number(li.dataset.id));
     });
@@ -114,10 +169,31 @@ export class UI {
     $('#btn-in').addEventListener('click', () => this.h.onZoom(1.6));
     $('#btn-out').addEventListener('click', () => this.h.onZoom(1 / 1.6));
 
-    const existing = trails.filter((t) => !t.plan && !t.road);
-    const miles = existing.reduce((a, t) => a + t.lengthMi, 0);
-    $('#stats').textContent = `${existing.length} trails · ${Math.round(miles).toLocaleString()} miles`;
+    this.updateProgress();
     this.render();
+  }
+
+  /** Show one park's trails in the list (null = all of them), and tell the map to fly there */
+  setPark(id: string | null, fly = true) {
+    this.park = id;
+    document.querySelectorAll<HTMLElement>('[data-park]').forEach((b) => b.classList.toggle('on', (b.dataset.park || null) === id));
+    this.updateProgress();
+    this.render();
+    if (fly) this.h.onPark(id);
+  }
+
+  private updateProgress() {
+    const inScope = this.trails.filter((t) => !t.plan && !t.road && (!this.park || t.park === this.park));
+    const done = inScope.filter((t) => this.rides.has(t));
+    const miles = inScope.reduce((a, t) => a + t.lengthMi, 0);
+    const doneMiles = done.reduce((a, t) => a + t.lengthMi, 0);
+    const where = this.park ? this.parks.find((p) => p.id === this.park)!.name : 'all parks';
+    $('#stats').textContent = `${inScope.length} trails · ${Math.round(miles).toLocaleString()} miles · ${where}`;
+    const pct = miles ? (doneMiles / miles) * 100 : 0;
+    $('#progress-fill').style.width = `${pct}%`;
+    $('#progress-text').innerHTML =
+      `<b>${done.length}</b> of ${inScope.length} trails ridden · <b>${doneMiles.toFixed(1)}</b> of ${miles.toFixed(1)} mi` +
+      (inScope.length && done.length === inScope.length ? ' · <b>all done! 🎉</b>' : '');
   }
 
   setPlans(on: boolean, include?: PlanGroup) {
@@ -138,7 +214,7 @@ export class UI {
   private render() {
     const q = norm(this.query);
     const words = q.split(' ').filter(Boolean);
-    let results = this.trails.filter((t) => !t.road && this.h.matches(t));
+    let results = this.trails.filter((t) => !t.road && this.h.matches(t) && (!this.park || t.park === this.park));
     if (words.length) {
       results = results
         .map((t) => {
@@ -159,11 +235,26 @@ export class UI {
       this.list.innerHTML = `<li class="empty">No trails match “${escape(this.query)}”. Try a shorter word?</li>`;
       return;
     }
-    const item = (t: Trail) => `<li data-id="${t.id}" class="${t.id === this.selected ? 'selected' : ''}">
-          ${swatch(t)}
+    const item = (t: Trail) => {
+      const ridden = this.rides.has(t);
+      return `<li data-id="${t.id}" class="${t.id === this.selected ? 'selected' : ''}${ridden ? ' ridden' : ''}">
+          ${t.plan ? swatch(t) : `<button class="ride-check" data-ride="${t.id}" aria-pressed="${ridden}" title="${ridden ? `Ridden ${this.rides.date(t)} · click to unmark` : 'Mark as ridden'}">${ridden ? '✓' : ''}</button>`}
+          ${t.plan ? '' : ridden ? '<span class="swatch ridden"></span>' : swatch(t)}
           <span class="li-name">${escape(t.name)}${t.plan ? `<small class="plan-tag">${planSummary(t)}</small>` : t.area ? `<small>${escape(t.area)}</small>` : ''}</span>
           <span class="li-len">${t.lengthMi}<small>mi</small></span>
         </li>`;
+    };
+    if (!this.park && !this.plansOn && !words.length) {
+      // one section per park, west to east
+      this.list.innerHTML = this.parks
+        .map((p) => {
+          const ts = results.filter((t) => t.park === p.id);
+          if (!ts.length) return '';
+          return `<li class="section">${escape(p.long)} · ${ts.length}</li>${ts.map(item).join('')}`;
+        })
+        .join('');
+      return;
+    }
     if (this.plansOn && !words.length) {
       // planned changes first, then everything that exists today
       const planned = results.filter((t) => t.plan);
@@ -196,6 +287,7 @@ export class UI {
     history.replaceState(null, '', `#${t.plan ? 'plan' : 'trail'}=${encodeURIComponent(t.name)}`);
     if (t.plan) return this.showPlan(t);
 
+    if (t.park) this.setParkQuietly(t.park);
     const uses = [
       t.hike ? `<span class="chip hike">🥾 Hiking</span>` : '',
       t.bike
@@ -210,17 +302,16 @@ export class UI {
       ['Hike difficulty', t.hikeDifficulty],
       ['Surface', t.surface ? escape(t.surface.replace(/_/g, ' ')) : null],
       ['Managed by', t.operator ? escape(t.operator) : null],
+      ['Type', t.fireRoad ? 'Fire road' : 'Singletrack / trail'],
       ['Elevation', `${t.minFt.toLocaleString()}′ – ${t.maxFt.toLocaleString()}′`],
-      [
-        'Source',
-        [t.official ? 'USFS trail inventory' : null, t.sources.includes('osm') ? 'OpenStreetMap' : null].filter(Boolean).join(' + '),
-      ],
+      ['Source', 'OpenStreetMap'],
     ];
 
     this.card.innerHTML = `
       <button id="card-close" class="icon-btn" aria-label="Close">✕</button>
-      <p class="eyebrow">${t.official ? '<span class="stamp">Official trail</span>' : ''}${t.area ? escape(t.area) : ''}</p>
+      <p class="eyebrow">${escape([this.parks.find((p) => p.id === t.park)?.long, t.area].filter(Boolean).join(' · '))}</p>
       <h2>${escape(t.name)}</h2>
+      <button id="card-ride" class="ride-toggle"></button>
       <div class="chips">${uses}</div>
       <div class="stats">
         <div><b>${t.lengthMi}</b><span>miles</span></div>
@@ -237,7 +328,27 @@ export class UI {
     this.openCard(t);
   }
 
+  /** Keep the list on the park of a trail picked on the map, without flying anywhere */
+  private setParkQuietly(id: string) {
+    if (this.park !== null && this.park !== id) this.setPark(id, false);
+  }
+
+  private updateRideButton(t: Trail) {
+    const btn = document.getElementById('card-ride');
+    if (!btn) return;
+    const date = this.rides.date(t);
+    btn.classList.toggle('on', date !== null);
+    btn.innerHTML = date
+      ? `<span class="box">✓</span><span>Ridden<small>${new Date(date + 'T12:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} · click to unmark</small></span>`
+      : `<span class="box"></span><span>Still to ride<small>click when you've ridden it</small></span>`;
+  }
+
   private openCard(t: Trail) {
+    const ride = document.getElementById('card-ride');
+    if (ride) {
+      ride.addEventListener('click', () => this.rides.toggle(t));
+      this.updateRideButton(t);
+    }
     $('#card-close').addEventListener('click', () => this.h.onSelect(null));
     $('#card-zoom').addEventListener('click', () => this.h.onSelect(t.id));
     this.card.classList.add('open');
