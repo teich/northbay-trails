@@ -1,6 +1,6 @@
 # North Bay Trails
 
-A watercolor-style isometric model of the mountain bike trails at **Monte Rio Redwoods**, **Taylor Mountain**, **Trione-Annadel**, **Jack London**, **Hood Mountain**, the **PUC forest** in Angwin, and **Moore Creek**, with a checklist of which trails you've ridden. The map is one continuous stretch of Sonoma and Napa, from the Russian River to Lake Hennessey. Forked from Kyle Aster's [Tahoe Trails](https://trails-fun.warpspire.com/).
+A watercolor-style isometric model of the trails of Sonoma and Napa between the Russian River and Lake Hennessey, with a checklist of which trails you've ridden. Every named trail in the region is on it. Seven parks get their own buttons: **Monte Rio Redwoods**, **Taylor Mountain**, **Trione-Annadel**, **Jack London**, **Hood Mountain**, the **PUC forest** in Angwin, and **Moore Creek**. The map is one continuous stretch of Sonoma and Napa, from the Russian River to Lake Hennessey. Forked from Kyle Aster's [Tahoe Trails](https://trails-fun.warpspire.com/).
 
 ```
 npm install
@@ -12,7 +12,7 @@ The [`docs/`](docs/README.md) folder covers what the app is for and how to use i
 ## Using it
 
 - **Drag** to pan, **scroll** to zoom, **right-drag** to spin (or `Q` / `E` to rotate 90°, `H` to go home, `U` to hide the interface for screenshots)
-- **West** (Monte Rio and the Russian River) and **East** (Taylor Mountain to Angwin) frame each half of the map and narrow the list to it. The park buttons below them fly to a single park. **Everywhere** goes back to the whole region.
+- **West** (Monte Rio and the Russian River) and **East** (Taylor Mountain to Angwin) frame each half of the map, every trail in it included, and narrow the list to it. The park buttons below them fly to a single park. **Everywhere** goes back to the whole region.
 - **Click a trail** on the map, or press `/` to search. Arrow keys + Enter pick from the results.
 - **Tick the box** next to a trail, or use the button on its card, to mark it ridden. Ridden trails turn teal on the map. The bar shows trails and miles ridden for the current park. **To ride** / **Ridden** filter both the list and the map.
 - The ridden list is saved in this browser's localStorage. Use **Export** / **Import** at the bottom of the panel to back it up or move it to another browser.
@@ -25,18 +25,21 @@ The [`docs/`](docs/README.md) folder covers what the app is for and how to use i
 | What | Source |
 | --- | --- |
 | Park outlines | OpenStreetMap (Moore Creek is hand-drawn around its trails because OSM has no outline for it; PUC uses the college forest's woodland outline) |
-| Trails | OpenStreetMap (Overpass) |
+| Trails | OpenStreetMap (Overpass), checked and filled in with [California State Parks' Recreational Routes](https://gis.data.cnra.ca.gov/datasets/csparks::recreational-routes-1) (CC-BY) |
+| Other parks and preserves (for naming trails outside the seven parks) | OpenStreetMap |
 | Lakes, the Russian River, peaks, towns | OpenStreetMap |
 | Elevation | AWS Terrain Tiles (Terrarium, z13) |
 
 How trails are chosen:
 
-- Named OSM paths, tracks (fire roads), and bridleways where at least half the trail lies inside a park or within that park's buffer distance. Private trails, trails closed to access, informal paths, and sidewalks are dropped.
-- Segments are grouped into trails by park, name, and connectedness.
+- Every named OSM path, track (fire road), and bridleway in the region. Private trails, trails closed to access, informal paths, sidewalks, and junk names ("dead end", "overgrown") are dropped.
+- A trail with at least half its length inside one of the seven parks, or within that park's buffer distance, belongs to that park. Outside the parks the rules are stricter: no paved paths, no stubs under 120 m, and dirt roads only when they're designated for trail use or named like a trail. Those trails are labeled with the named park or preserve they're in (Sugarloaf Ridge, Armstrong Redwoods, and so on), and listed under "Other trails" when they're in none.
+- In state parks, California State Parks' route inventory confirms OSM trails, fills in bike access where OSM doesn't say (OSM wins when both say and disagree), and adds trails OSM is missing.
+- Trails are clipped at the map's edge. Segments are grouped into trails by park (or place, or region), name, and connectedness.
 - **Bike access** comes from the OSM `bicycle` / `mtb:scale` tags. When OSM doesn't say, bikes are assumed allowed except on footways.
 - **Trail ratings** (green circle, blue square, black diamond, double black) come from `mtb:scale:imba` when it's mapped, otherwise from the `mtb:scale` technical grade (S0 green, S1 blue, S2 black, S3+ double black). The hardest piece of a trail sets its rating. Only about 30 trails here are rated in OSM; the rest show no mark.
 
-To add a park, add an entry to `PARKS` in `scripts/build-data.mjs` (and widen `BBOX` if it's outside the region), then run `npm run data`. To drop a trail that doesn't belong, add its name to that park's `exclude`.
+To give a park its own button and list section, add an entry to `PARKS` in `scripts/build-data.mjs` (and widen `BBOX` if it's outside the region), then run `npm run data`. To drop a trail that doesn't belong, add its name to that park's `exclude`.
 
 Always check the land manager's current rules and closures before you go.
 

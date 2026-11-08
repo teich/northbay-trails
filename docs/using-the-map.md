@@ -24,13 +24,15 @@ The compass above the buttons always points north, which helps after you've spun
 
 The buttons under the title jump between parts of the map:
 
-- **West** frames Monte Rio Redwoods and the Russian River, which sit on their own toward the coast.
-- **East** frames the parks from Taylor Mountain to Angwin: Taylor Mountain, Annadel, Jack London, Hood Mountain, PUC, and Moore Creek. The list shows just those parks, grouped by park, and the progress bar counts just their trails.
+- **West** frames the Russian River side: Monte Rio Redwoods, Armstrong Redwoods, Austin Creek, and the trails toward the coast.
+- **East** frames everything from Taylor Mountain to Angwin: Taylor Mountain, Annadel, Jack London, Hood Mountain, PUC, and Moore Creek, plus the trails around them, like Sugarloaf Ridge and Bothe-Napa Valley.
+
+In either view, the list shows that side's trails in sections: one per main park, then one per other park or preserve (largest first), then "Other trails" for trails in no named park. The progress bar counts that side's trails.
 
 - A park's button (**Monte Rio**, **Taylor Mountain**, **Annadel**, **Jack London**, **Hood Mountain**, **PUC**, or **Moore Creek**) flies the map to that park and narrows the trail list and the progress bar to it. The rest of the map stays visible, so you can still zoom out and pan around.
-- **Everywhere** flies back to the whole region and lists every park's trails, grouped by park.
+- **Everywhere** flies back to the whole region and lists every trail, in the same sections.
 
-Picking a trail on the map while the list is narrowed to a different park switches the list to the trail's park.
+Picking a trail on the map while the list is narrowed to something else switches the list to the trail's park, or to its side of the map if it's outside the main parks.
 
 ## Tracking what you've ridden
 
@@ -54,13 +56,13 @@ When you select a trail, the map flies to it and highlights it in gold. Everythi
 
 The card shows the following:
 
-- **Park**, and a location hint when two trails in the same park share a name
+- **Park** (or, outside the main parks, the park or preserve it's in), and a location hint when two nearby trails share a name
 - **Name**
 - **Ridden or still to ride**, with the date you marked it
 - **Who it's for**: hiking, mountain bikes, or no bikes. If bike access was inferred rather than stated in the data, the card says "likely allowed".
 - **Miles, climbing, and descending**
 - **An elevation profile** of the longest continuous stretch
-- **Details**, when known: trail rating (green / blue / black / double black), technical grade (the S0–S6 mountain bike scale), hike difficulty, surface, who manages it, whether it's a fire road or a trail, and its elevation range
+- **Details**, when known: trail rating (green / blue / black / double black), technical grade (the S0–S6 mountain bike scale), hike difficulty, surface, who manages it, whether it's a fire road or a trail, its elevation range, and its source (OpenStreetMap, confirmed by State Parks, or State Parks alone)
 
 **Zoom to trail** re-frames the map on the selected trail.
 

@@ -248,10 +248,14 @@ async function main() {
       if (selected !== null && !trailLayer.matches(trails[selected])) select(null);
       dirty = true;
     },
-    onPark: (id, parks) => {
+    onPark: (id, parks, trailIds) => {
       if (selected !== null) select(null);
-      if (id) frameBox(parks.flatMap((p) => parkPoints.get(p)!), { left: 380, right: 80, top: 60, bottom: 60 });
-      else home();
+      if (id) {
+        // frame the park outlines and every trail in the view (trails can run well outside the parks)
+        const box = new THREE.Box3().setFromPoints(parks.flatMap((p) => parkPoints.get(p)!));
+        for (const t of trailIds) box.union(trailLayer.bounds(t));
+        frameBox(box, { left: 380, right: 80, top: 60, bottom: 60 });
+      } else home();
       history.replaceState(null, '', id ? `#park=${id}` : location.pathname);
     },
     onRidden: () => {

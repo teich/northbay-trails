@@ -5,13 +5,16 @@ All of the map's data comes from public sources. It's gathered and processed ahe
 | What | Source |
 | --- | --- |
 | Park outlines | OpenStreetMap. Moore Creek is hand-drawn around its signed bike trails, because OpenStreetMap has no outline for the park. PUC uses the outline of the college's forest. |
-| Trails | OpenStreetMap |
+| Trails | OpenStreetMap, checked and filled in with California State Parks' Recreational Routes (CC-BY) in state parks |
+| Other parks and preserves | OpenStreetMap, for naming the trails outside the seven main parks |
 | Lakes, the Russian River, peaks, towns | OpenStreetMap |
 | Terrain | AWS Terrain Tiles (USGS elevation data) |
 
 ## What counts as a trail
 
-The goal is to show the trails a mountain biker or hiker would actually use in each park. The map includes **named** paths, trails, bridleways, and fire roads where at least half the trail is inside a park, or close enough to its edge to count (trailheads and connectors often start just outside). How close counts differs by park:
+The goal is to show every trail a mountain biker or hiker could use in the region, not just the ones in the seven main parks. The map includes every **named** path, trail, bridleway, and fire road between the Russian River and Lake Hennessey.
+
+The seven parks are where the map gives trails a home: a trail belongs to a park when at least half of it is inside the park, or close enough to its edge to count (trailheads and connectors often start just outside). How close counts differs by park:
 
 | Park | Counts as part of the park |
 | --- | --- |
@@ -23,19 +26,36 @@ The goal is to show the trails a mountain biker or hiker would actually use in e
 | PUC forest | within 150 m |
 | Moore Creek | within 150 m of the drawn outline |
 
-It leaves out:
+Trails outside the seven parks are labeled with the named park or preserve they're in, like Sugarloaf Ridge State Park or Armstrong Redwoods, or listed under "Other trails". Outside the parks the map is choosier, so it doesn't fill up with farm roads and town paths:
+
+- no paved paths
+- dirt roads only when they're designated for trail use or named like a trail
+- no stubs shorter than about 120 m
+
+Everywhere, it leaves out:
 
 - unnamed paths
 - informal or private paths, and anything marked closed to access
 - sidewalks and footpaths that aren't named as trails
+- placeholder names like "dead end" and "overgrown"
+
+Trails that run off the edge of the map are cut at the edge.
 
 Pieces of a trail that share a name and connect are joined into one trail.
 
-Monte Rio's wide margin pulls in some trails on land next to the preserve, west and south of it. Trails that mostly run outside a park are left out, even when they start inside it: Hood Mountain's Goodspeed Trail, which climbs up from Sugarloaf, is one. Either can be adjusted in `scripts/build-data.mjs`.
+Monte Rio's wide margin pulls some trails on land next to the preserve into its list. A trail that mostly runs outside a park, like Hood Mountain's Goodspeed Trail climbing up from Sugarloaf, is listed with where most of it is instead. Both can be adjusted in `scripts/build-data.mjs`.
+
+## State park trails
+
+In state parks, California State Parks' own route inventory is matched against OpenStreetMap:
+
+- OSM trails that match it are confirmed, and the trail card says so.
+- Where OSM doesn't say whether bikes are allowed, the inventory decides. Where both say and disagree, OSM wins (it's often more current), and the build lists the disagreements.
+- Trails in the inventory that OSM is missing are added.
 
 ## How bike access is decided
 
-Bike access comes from OpenStreetMap's bicycle tags, including mountain bike difficulty ratings, when they're there. When they aren't, bikes are assumed allowed on trails and fire roads and not allowed on footpaths. Trail cards mark guessed access as "likely allowed". Guessing matters more at Hood Mountain and Jack London, which close many of their trails to bikes, so check those parks' rules.
+Bike access comes from OpenStreetMap's bicycle tags, including mountain bike difficulty ratings, when they're there, and in state parks from State Parks' inventory. When neither says, bikes are assumed allowed on trails and fire roads and not allowed on footpaths. Trail cards mark guessed access as "likely allowed". Guessing matters more at Hood Mountain and Jack London, which close many of their trails to bikes, so check those parks' rules.
 
 ## Trail ratings
 

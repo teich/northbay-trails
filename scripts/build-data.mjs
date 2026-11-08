@@ -6,6 +6,8 @@
 //
 // Sources:
 //   - OpenStreetMap via Overpass: park boundaries, trails, lakes, peaks, towns
+//   - California State Parks Recreational Routes (CC-BY): the official trail inventory for
+//     Annadel and Jack London; confirms OSM trails, fills in allowed uses, and adds trails OSM lacks
 //   - AWS Terrain Tiles (Terrarium): elevation
 //
 // Outputs (public/data/):
@@ -33,14 +35,16 @@ const GRID_SPACING = 35; // meters between terrain samples
 const DEM_ZOOM = 13;
 const EXAGGERATION = 3; // the hills here are low; Tahoe used 2.3 on mountains twice as tall
 
-// Parks are grouped into regions for the West / East views
+// Parks and trails are grouped into regions for the West / East views, split at this longitude
 const REGIONS = [
   { id: 'west', name: 'West', long: 'Russian River' },
   { id: 'east', name: 'East', long: 'Santa Rosa to Angwin' },
 ];
+const WEST_EAST_SPLIT = -122.85;
 
-// Each park's trails are drawn and listed, in this order (roughly west to east). Add a park
-// here to add it to the map.
+// Every named trail in BBOX is on the map. These parks get their own buttons and list
+// sections, in this order (roughly west to east); a trail mostly inside one (or within its
+// buffer) belongs to it. Trails elsewhere are listed by the open space they're in, if any.
 //
 //   park      the outline: OSM element ids, or a hand-drawn ring of [lon, lat]
 //   buffer    meters outside the outline a trail may still count as part of the park
@@ -445,7 +449,33 @@ out body geom;`),
   }
   console.log(`  ${lakes.length} water bodies, ${labels.length} labels`);
 
-  // --- 4. Trails
+  // --- 4. Other open space: named parks and preserves that aren't one of PARKS, for placing
+  // the trails outside PARKS ("Sugarloaf Ridge State Park") and painting them in full color
+  console.log('Other open space');
+  const osmAreas = JSON.parse(
+    await cached('open-space.json', () =>
+      overpass(`[out:json][timeout:180];
+(
+ wr["boundary"="protected_area"]["name"](${box});
+ wr["leisure"~"^(park|nature_reserve)$"]["name"](${box});
+);
+out body geom;`),
+    ),
+  );
+  const parkOsmIds = new Set(PARKS.flatMap((p) => p.park.osm ?? []));
+  const openSpace = [];
+  for (const el of osmAreas.elements) {
+    if (parkOsmIds.has(`${el.type}/${el.id}`)) continue;
+    const polys = osmPolygons(el).filter((q) => q.outer.some(inExtent));
+    const area_ = polys.reduce((a, q) => a + ringArea(q.outer), 0);
+    if (area_ < 200000) continue; // skip pocket parks and school fields
+    openSpace.push({ name: el.tags.name.trim(), polys, area: area_ });
+  }
+  openSpace.sort((a, b) => a.area - b.area); // smallest first, so a preserve inside a bigger area wins
+  const openSpaceAt = (x, y) => openSpace.find((o) => pointInPolygons(x, y, o.polys))?.name ?? null;
+  console.log(`  ${openSpace.length} named open spaces`);
+
+  // --- 5. Trails
   console.log('Trails');
   const osmTrails = JSON.parse(
     await cached('trails.json', () =>
@@ -457,10 +487,13 @@ out tags geom;`),
     ),
   );
 
-  const NOT_A_TRAIL = /bike path|shared use path|climb|boulder|approach|snow storage|parcourse|decommis|^\d+$|driveway|bushwhack/i;
+  const NOT_A_TRAIL = /bike path|shared use path|climb|boulder|approach|snow storage|parcourse|decommis|^\d+$|driveway|bushwhack|^(dead end|overgrown|closed|unnamed|no name)$/i;
   const TRAILISH = /trail|loop|connector|cutoff|spur|fire road|\bf\.?r\.?\b|path|vista|overlook|dh\b/i;
+  const ROAD_NAME = /\b(road|rd|drive|lane|avenue|ave|court|street|boulevard|circle|way|highway)\b/i;
+  const PAVED = /asphalt|paved|concrete|paving_stones|sett/;
+  const westX = project(WEST_EAST_SPLIT, LAT0)[0];
   const segments = [];
-  const dropped = new Map();
+  let outsideParks = 0;
   for (const w of osmTrails.elements) {
     const t = w.tags;
     const name = t.name.trim();
@@ -475,18 +508,27 @@ out tags geom;`),
       const s = sample.filter(([x, y]) => p.near(x, y)).length / sample.length;
       if (s > share) [park, share] = [p, s];
     }
-    if (share < 0.5) {
-      if (share > 0) dropped.set(name, park.name);
-      continue;
+    if (share < 0.5) park = null;
+    if (park?.exclude[name]) continue;
+    const mid = pts[Math.floor(pts.length / 2)];
+    if (!park) {
+      // Outside the parks, be choosier: no paved paths, and dirt roads only when they're
+      // designated for trail use or named like a trail (not every ranch road is a ride)
+      if (PAVED.test(t.surface ?? '')) continue;
+      const designated = ['designated', 'yes', 'permissive'].includes(t.bicycle) || t.foot === 'designated' || t.horse === 'designated' || t['mtb:scale'] != null;
+      if (t.highway === 'track' && !designated && !TRAILISH.test(name)) continue;
+      if (ROAD_NAME.test(name) && !TRAILISH.test(name) && !designated) continue;
+      outsideParks++;
     }
-    if (park.exclude[name]) continue;
     let bike = null;
     if (['yes', 'designated', 'permissive'].includes(t.bicycle) || t['mtb:scale'] != null) bike = true;
     else if (['no', 'dismount'].includes(t.bicycle)) bike = false;
     const bikeInferred = bike === null;
     if (bike === null) bike = t.highway !== 'footway';
     segments.push({
-      park: park.id,
+      park: park?.id ?? null,
+      region: park?.region ?? (mid[0] < westX ? 'west' : 'east'),
+      place: park ? null : openSpaceAt(mid[0], mid[1]),
       name,
       pts,
       hike: t.foot !== 'no',
@@ -498,10 +540,11 @@ out tags geom;`),
       surface: t.surface ?? null,
       operator: t.operator ?? null,
       fireRoad: t.highway === 'track',
+      source: 'osm',
+      official: false,
     });
   }
-  console.log(`  ${segments.length} OSM segments kept`);
-  if (dropped.size) console.log(`  just outside a park (dropped): ${[...dropped].map(([n, p]) => `${n} (${p})`).sort().join(', ')}`);
+  console.log(`  ${segments.length} OSM segments kept, ${outsideParks} of them outside the parks`);
 
   const normName = (n) =>
     n
@@ -509,13 +552,191 @@ out tags geom;`),
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9 ]/g, '')
-      .replace(/\b(trail|trails|tr)\b/g, '')
+      .replace(/\b(trail|trails|tr|trl)\b/g, '')
       .replace(/\s+/g, ' ')
       .trim();
 
+  // --- 4b. California State Parks' own route inventory
+  //
+  // Each OSM segment that the state's lines follow is marked official, and where OSM doesn't say
+  // whether bikes are allowed, the state's designation ("Hike, Bike and Horse", "Hike") decides.
+  // State lines OSM has no trail for are added. Paved roads and closed routes are left out.
+  const csp = JSON.parse(
+    await cached('csp-routes.geojson', () =>
+      get(
+        `https://services2.arcgis.com/AhxrK3F6WM8ECvDi/arcgis/rest/services/RecreationalRoutes/FeatureServer/0/query?where=1%3D1&geometry=${BBOX.west},${BBOX.south},${BBOX.east},${BBOX.north}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&outSR=4326&f=geojson`,
+      ),
+    ),
+  );
+  const cspName = (n) =>
+    n
+      .trim()
+      .replace(/\s+/g, ' ')
+      .replace(/-\d+$/, '')
+      .replace(/\bTrl\b\.?/g, 'Trail')
+      .replace(/\bRd\b\.?/g, 'Road')
+      .replace(/\bMtn\b\.?/g, 'Mountain')
+      .replace(/\bCG\b/g, 'Campground');
+  const CSP_SURFACE = { 'Native Material': 'dirt', Aggregate: 'gravel', Vegetated: 'grass' };
+  const cspLines = [];
+  for (const f of csp.features) {
+    const p = f.properties;
+    if (!['State Park Trail', 'State Park Road'].includes(p.ROUTECLASS)) continue;
+    if (!/hike|bike|horse/i.test(p.TRAILDES ?? '')) continue; // Prohibited / Not Determined
+    if (['Asphalt', 'Concrete'].includes(p.ROUTETYPE)) continue;
+    if (['Public Restricted', 'Emergency Access'].includes(p.ROUTEDES)) continue;
+    const coords = f.geometry.type === 'MultiLineString' ? f.geometry.coordinates : [f.geometry.coordinates];
+    for (const line of coords) {
+      const pts = line.map(([lon, lat]) => project(lon, lat));
+      if (pts.length >= 2) cspLines.push({ p, pts, bike: /bike/i.test(p.TRAILDES) });
+    }
+  }
+
+  // Spatial hash of state-line vertices
+  const HASH = 60;
+  const hkey = (x, y) => `${Math.floor(x / HASH)},${Math.floor(y / HASH)}`;
+  const nearest = (hash, x, y, r) => {
+    let best = null;
+    let bd = r;
+    const cx = Math.floor(x / HASH);
+    const cy = Math.floor(y / HASH);
+    for (let i = -1; i <= 1; i++)
+      for (let j = -1; j <= 1; j++)
+        for (const [px, py, v] of hash.get(`${cx + i},${cy + j}`) || []) {
+          const d = Math.hypot(px - x, py - y);
+          if (d < bd) [bd, best] = [d, v];
+        }
+    return best;
+  };
+  const buildHash = (items) => {
+    const h = new Map();
+    for (const it of items)
+      for (const [x, y] of densify(it.pts, 25)) {
+        const k = hkey(x, y);
+        if (!h.has(k)) h.set(k, []);
+        h.get(k).push([x, y, it]);
+      }
+    return h;
+  };
+
+  // OSM side: a segment the state's lines run along for most of its length is official
+  const cspHash = buildHash(cspLines);
+  let confirmed = 0;
+  let bikeFilled = 0;
+  const bikeConflicts = new Set();
+  for (const s of segments) {
+    const dense = densify(s.pts, 25);
+    const hits = dense.map(([x, y]) => nearest(cspHash, x, y, 40)).filter(Boolean);
+    if (hits.length / dense.length < 0.6) continue;
+    s.official = true;
+    confirmed++;
+    const bikeVotes = hits.filter((h) => h.bike).length / hits.length;
+    const cspBike = bikeVotes > 0.5;
+    if (s.bikeInferred) {
+      if (s.bike !== cspBike) bikeFilled++;
+      s.bike = cspBike;
+      s.bikeInferred = false;
+    } else if (s.bike !== cspBike && (bikeVotes > 0.8 || bikeVotes < 0.2)) {
+      bikeConflicts.add(`${s.name}: OSM ${s.bike ? 'yes' : 'no'}, State Parks ${cspBike ? 'yes' : 'no'}`);
+    }
+  }
+
+  // State side: add lines OSM doesn't have. Like the old USFS merge, a line that follows an OSM
+  // trail of the same name (never straying far) is the same trail drawn differently: OSM wins.
+  const osmHash = buildHash(segments);
+  const osmByName = new Map();
+  for (const s of segments) {
+    const k = normName(s.name);
+    if (!osmByName.has(k)) osmByName.set(k, []);
+    osmByName.get(k).push(...densify(s.pts, 40));
+  }
+  const added = [];
+  const duplicates = new Set();
+  for (const c of cspLines) {
+    // Unnamed, residence and service spurs, and volunteer trails aren't trails to list
+    if (!c.p.ROUTENAME?.trim() || /^un+amed|residence|^to |service road|volunteer/i.test(c.p.ROUTENAME.trim())) continue;
+    const name = cspName(c.p.ROUTENAME);
+    if (NOT_A_TRAIL.test(name)) continue;
+    const dense = densify(c.pts, 25);
+    let park = null;
+    let share = 0;
+    for (const p of PARKS) {
+      const sh = dense.filter(([x, y]) => p.near(x, y)).length / dense.length;
+      if (sh > share) [park, share] = [p, sh];
+    }
+    if (share < 0.5) park = null;
+    if (park?.exclude[name]) continue;
+    const covered = dense.filter(([x, y]) => nearest(osmHash, x, y, 45)).length / dense.length;
+    if (covered > 0.6) continue;
+    const sameName = osmByName.get(normName(name));
+    // A short piece of a trail OSM already has nearby (within 1.5 km) by name is a stub, not missing trail;
+    // adding it would only split the trail into two list entries.
+    const sameNameNear = sameName && dense.some(([x, y]) => sameName.some(([ox, oy]) => Math.hypot(ox - x, oy - y) < 1500));
+    if (sameNameNear && lineLength(c.pts) < 800) {
+      duplicates.add(name);
+      continue;
+    }
+    if (sameName) {
+      let stray = 0;
+      let longestStray = 0;
+      let near = 0;
+      for (const [x, y] of dense) {
+        const close = sameName.some(([ox, oy]) => Math.hypot(ox - x, oy - y) < 200);
+        if (close) near++;
+        stray = close ? 0 : stray + 25;
+        longestStray = Math.max(longestStray, stray);
+      }
+      if (near / dense.length > 0.6 && longestStray < 600) {
+        duplicates.add(name);
+        continue;
+      }
+    }
+    const mid = c.pts[Math.floor(c.pts.length / 2)];
+    const seg = {
+      park: park?.id ?? null,
+      region: park?.region ?? (mid[0] < westX ? 'west' : 'east'),
+      place: park ? null : openSpaceAt(mid[0], mid[1]),
+      name,
+      pts: c.pts,
+      hike: true,
+      bike: c.bike,
+      bikeInferred: false,
+      mtbScale: null,
+      imba: null,
+      sacScale: null,
+      surface: CSP_SURFACE[c.p.ROUTETYPE] ?? null,
+      operator: 'California State Parks',
+      fireRoad: c.p.ROUTECLASS === 'State Park Road',
+      source: 'csp',
+      official: true,
+    };
+    segments.push(seg);
+    added.push(seg);
+  }
+  console.log(`  State Parks: ${cspLines.length} public lines; ${confirmed} OSM segments confirmed, ${bikeFilled} bike access corrected`);
+  console.log(`  State Parks lines added where OSM lacks them: ${[...new Set(added.map((s) => `${s.name} (${s.park ?? s.place ?? s.region})`))].sort().join(', ') || 'none'}`);
+  if (duplicates.size) console.log(`  State Parks lines skipped as redraws of OSM trails: ${[...duplicates].sort().join(', ')}`);
+  if (bikeConflicts.size) console.log(`  bike access disagrees (OSM kept): ${[...bikeConflicts].sort().join('; ')}`);
+
+  // Clip trails at the edge of the map: past it there's no terrain to drape them on
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const seg = segments[i];
+    if (seg.pts.every(inExtent)) continue;
+    const runs = [];
+    let run = [];
+    for (const p of seg.pts) {
+      if (inExtent(p)) run.push(p);
+      else {
+        if (run.length > 1) runs.push(run);
+        run = [];
+      }
+    }
+    if (run.length > 1) runs.push(run);
+    segments.splice(i, 1, ...runs.map((pts) => ({ ...seg, pts })));
+  }
   const byName = new Map();
   for (const s of segments) {
-    const k = `${s.park}|${normName(s.name)}`;
+    const k = `${s.park ?? s.place ?? s.region}|${normName(s.name)}`;
     if (!byName.has(k)) byName.set(k, []);
     byName.get(k).push(s);
   }
@@ -614,7 +835,7 @@ out tags geom;`),
   for (const segs of byName.values()) {
     for (const group of components(segs, 150)) {
       const { outLines, length, gain, loss, lo, hi } = measure(chain(group));
-      if (length < 60) continue;
+      if (length < (group[0].park ? 60 : 120)) continue; // stray stubs outside the parks aren't worth listing
       const counts = new Map();
       for (const s of group) {
         const n = s.name.replace(/\s*\(.*?\)\s*/g, ' ').trim();
@@ -639,8 +860,13 @@ out tags geom;`),
         .filter((v) => v != null);
       const surfaces = [...new Set(group.map((s) => s.surface).filter(Boolean))];
       const operators = [...new Set(group.map((s) => s.operator).filter(Boolean))];
+      // most common place among the pieces (a trail can cross a preserve's edge)
+      const places = new Map();
+      for (const s of group) if (s.place) places.set(s.place, (places.get(s.place) ?? 0) + lineLength(s.pts));
       trails.push({
         park: group[0].park,
+        region: group[0].region,
+        place: [...places].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
         name,
         hike: group.some((s) => s.hike),
         bike: bikeShare > 0.5,
@@ -653,8 +879,8 @@ out tags geom;`),
         hikeDifficulty: sac.length ? SAC_LABEL[sac.sort()[0]] ?? null : null,
         surface: surfaces.slice(0, 2).join(', ') || null,
         operator: operators.slice(0, 2).join(' · ') || null,
-        official: false,
-        sources: ['osm'],
+        official: group.some((s) => s.official),
+        sources: [...new Set(group.flatMap((s) => (s.source === 'osm' && s.official ? ['osm', 'csp'] : [s.source])))],
         wilderness: false,
         lengthMi: Math.round((length / 1609.34) * 10) / 10,
         gainFt: Math.round(gain * 3.28084),
@@ -668,12 +894,13 @@ out tags geom;`),
   trails.sort((a, b) => a.name.localeCompare(b.name) || b.lengthMi - a.lengthMi);
   // Disambiguate duplicate names with a location hint
   const nameCount = new Map();
-  for (const t of trails) nameCount.set(`${t.park}|${t.name}`, (nameCount.get(`${t.park}|${t.name}`) || 0) + 1);
+  const groupKey = (t) => `${t.park ?? t.place ?? t.region}|${t.name}`;
+  for (const t of trails) nameCount.set(groupKey(t), (nameCount.get(groupKey(t)) || 0) + 1);
   const towns = labels.filter((l) => l.kind === 'town' || l.kind === 'village' || l.kind === 'peak' || l.kind === 'lake');
   const seenNames = new Map();
   trails.forEach((t, i) => {
     t.id = i;
-    const key = `${t.park}|${t.name}`;
+    const key = groupKey(t);
     if (nameCount.get(key) > 1) {
       const n = (seenNames.get(key) ?? 0) + 1;
       seenNames.set(key, n);
@@ -690,8 +917,15 @@ out tags geom;`),
     const ts = trails.filter((t) => t.park === p.id);
     console.log(`    ${p.long}: ${ts.length} trails, ${ts.reduce((a, t) => a + t.lengthMi, 0).toFixed(1)} mi`);
   }
+  for (const r of REGIONS) {
+    const ts = trails.filter((t) => !t.park && t.region === r.id);
+    const byPlace = new Map();
+    for (const t of ts) byPlace.set(t.place ?? '(no park)', (byPlace.get(t.place ?? '(no park)') ?? 0) + 1);
+    console.log(`    ${r.name}, outside the parks: ${ts.length} trails, ${ts.reduce((a, t) => a + t.lengthMi, 0).toFixed(1)} mi`);
+    console.log(`      ${[...byPlace].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ')}`);
+  }
 
-  // --- 5. Write
+  // --- 6. Write
   const map = {
     bbox: BBOX,
     widthM: Math.round(WIDTH_M),
@@ -701,12 +935,18 @@ out tags geom;`),
     datum: Math.round(minEle),
     exaggeration: EXAGGERATION,
     regions: REGIONS,
+    // other named open space, painted in full color like the parks
+    openSpace: openSpace.map((o) => ({ name: o.name, rings: o.polys.map((q) => round(simplify(q.outer, 8))) })),
     parks: PARKS.map((p) => ({ id: p.id, region: p.region, name: p.name, long: p.long, rings: p.polys.map((q) => round(simplify(q.outer, 6))) })),
     lakes,
     wilderness: [],
     roads: [],
     labels,
-    attribution: ['Trails © OpenStreetMap contributors (ODbL)', 'Elevation: AWS Terrain Tiles (USGS 3DEP)'],
+    attribution: [
+      'Trails © OpenStreetMap contributors (ODbL)',
+      'State park trails: California State Parks (CC-BY)',
+      'Elevation: AWS Terrain Tiles (USGS 3DEP)',
+    ],
   };
   fs.writeFileSync(path.join(out, 'map.json'), JSON.stringify(map));
   fs.writeFileSync(path.join(out, 'trails.json'), JSON.stringify(trails));

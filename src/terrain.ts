@@ -174,7 +174,7 @@ function buildMaskTexture(t: Terrain): THREE.Texture {
     lakes(ctx, w, h);
   }, 7);
   const basin = layer((ctx, w, h) => {
-    for (const park of t.map.parks) {
+    for (const park of [...t.map.parks, ...(t.map.openSpace ?? [])]) {
       for (const ring of park.rings) {
         ctx.beginPath();
         t.tracePath(ctx, ring, w, h);
@@ -255,7 +255,7 @@ function buildTrees(t: Terrain): THREE.InstancedBufferGeometry {
 }
 
 function basinTester(t: Terrain) {
-  const rings: XY[][] = t.map.parks.flatMap((p) => p.rings);
+  const rings: XY[][] = [...t.map.parks, ...(t.map.openSpace ?? [])].flatMap((p) => p.rings);
   const inRing = (ring: XY[], x: number, y: number) => {
     let inside = false;
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {

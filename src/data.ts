@@ -33,6 +33,8 @@ export interface MapData {
   parks: Park[];
   /** Groups of parks, for the West / East views */
   regions: Region[];
+  /** Other named parks and preserves, painted in full color like the parks */
+  openSpace: { name: string; rings: XY[][] }[];
   lakes: Lake[];
   wilderness: { name: string; rings: XY[][] }[];
   /** A few named roads drawn for context; not trails */
@@ -89,8 +91,12 @@ export interface Trail {
   plan?: Plan;
   /** A context road: drawn on the map, but not listed, counted, or clickable */
   road?: boolean;
-  /** Park id (see MapData.parks) */
-  park?: string;
+  /** Park id (see MapData.parks), or null for a trail outside the parks */
+  park?: string | null;
+  /** Region id (see MapData.regions) */
+  region?: string;
+  /** For a trail outside the parks: the named open space it's in, if any */
+  place?: string | null;
   /** Every piece is a dirt road / fire road */
   fireRoad?: boolean;
   name: string;

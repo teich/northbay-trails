@@ -6,8 +6,8 @@ interface Handlers {
   onSelect: (id: number | null, opts?: { fly?: boolean }) => void;
   onHover: (id: number | null) => void;
   onProgress: (p: Progress) => void;
-  /** a park or region was picked (null = everywhere): its id, and the parks it covers */
-  onPark: (id: string | null, parks: string[]) => void;
+  /** a park or region was picked (null = everywhere): its id, the parks it covers, and its trails */
+  onPark: (id: string | null, parks: string[], trailIds: number[]) => void;
   /** the ridden log changed */
   onRidden: () => void;
   onPlans: (groups: Set<PlanGroup>) => void;
@@ -172,8 +172,10 @@ export class UI {
     return [id];
   }
 
-  private inScope(t: Trail) {
-    return !this.park || this.scopeParks().includes(t.park ?? '');
+  private inScope(t: Trail, id: string | null = this.park) {
+    if (!id) return true;
+    if (this.regions.some((r) => r.id === id)) return t.region === id;
+    return t.park === id;
   }
 
   /** Show one park's or region's trails in the list (null = all of them), and tell the map to fly there */
@@ -182,7 +184,7 @@ export class UI {
     document.querySelectorAll<HTMLElement>('[data-park]').forEach((b) => b.classList.toggle('on', (b.dataset.park || null) === id));
     this.updateProgress();
     this.render();
-    if (fly) this.h.onPark(id, this.scopeParks(id));
+    if (fly) this.h.onPark(id, this.scopeParks(id), this.trails.filter((t) => !t.road && !t.plan && this.inScope(t, id)).map((t) => t.id));
   }
 
   private updateProgress() {
@@ -248,16 +250,23 @@ export class UI {
           <span class="li-len">${t.lengthMi}<small>mi</small></span>
         </li>`;
     };
-    if (this.scopeParks().length > 1 && !this.plansOn && !words.length) {
-      // one section per park, west to east
-      this.list.innerHTML = this.parks
+    const singlePark = this.park !== null && !this.regions.some((r) => r.id === this.park);
+    if (!singlePark && !this.plansOn && !words.length) {
+      // one section per park, west to east, then the trails outside the parks, grouped by the
+      // open space they're in (biggest groups first), with the rest last
+      const section = (title: string, ts: Trail[]) => (ts.length ? `<li class="section">${escape(title)} · ${ts.length}</li>${ts.map(item).join('')}` : '');
+      const parkSections = this.parks
         .filter((p) => this.scopeParks().includes(p.id))
-        .map((p) => {
-          const ts = results.filter((t) => t.park === p.id);
-          if (!ts.length) return '';
-          return `<li class="section">${escape(p.long)} · ${ts.length}</li>${ts.map(item).join('')}`;
-        })
-        .join('');
+        .map((p) => section(p.long, results.filter((t) => t.park === p.id)));
+      const places = new Map<string, Trail[]>();
+      for (const t of results) {
+        if (t.park || !t.place) continue;
+        if (!places.has(t.place)) places.set(t.place, []);
+        places.get(t.place)!.push(t);
+      }
+      const placeSections = [...places].sort((a, b) => b[1].length - a[1].length).map(([name, ts]) => section(name, ts));
+      const loose = section('Other trails', results.filter((t) => !t.park && !t.place));
+      this.list.innerHTML = [...parkSections, ...placeSections, loose].join('');
       return;
     }
     if (this.plansOn && !words.length) {
@@ -292,7 +301,7 @@ export class UI {
     history.replaceState(null, '', `#${t.plan ? 'plan' : 'trail'}=${encodeURIComponent(t.name)}`);
     if (t.plan) return this.showPlan(t);
 
-    if (t.park) this.setParkQuietly(t.park);
+    this.setScopeFor(t);
     const uses = [
       t.hike ? `<span class="chip hike">🥾 Hiking</span>` : '',
       t.bike
@@ -310,12 +319,19 @@ export class UI {
       ['Managed by', t.operator ? escape(t.operator) : null],
       ['Type', t.fireRoad ? 'Fire road' : 'Singletrack / trail'],
       ['Elevation', `${t.minFt.toLocaleString()}′ – ${t.maxFt.toLocaleString()}′`],
-      ['Source', 'OpenStreetMap'],
+      [
+        'Source',
+        t.sources.includes('osm')
+          ? t.sources.includes('csp')
+            ? 'OpenStreetMap · confirmed by California State Parks'
+            : 'OpenStreetMap'
+          : 'California State Parks',
+      ],
     ];
 
     this.card.innerHTML = `
       <button id="card-close" class="icon-btn" aria-label="Close">✕</button>
-      <p class="eyebrow">${escape([this.parks.find((p) => p.id === t.park)?.long, t.area].filter(Boolean).join(' · '))}</p>
+      <p class="eyebrow">${escape([this.parks.find((p) => p.id === t.park)?.long ?? t.place, t.area].filter(Boolean).join(' · '))}</p>
       <h2>${escape(t.name)}</h2>
       <button id="card-ride" class="ride-toggle"></button>
       <div class="chips">${uses}</div>
@@ -334,9 +350,10 @@ export class UI {
     this.openCard(t);
   }
 
-  /** Keep the list on the park of a trail picked on the map, without flying anywhere */
-  private setParkQuietly(id: string) {
-    if (this.park !== null && !this.scopeParks().includes(id)) this.setPark(id, false);
+  /** Keep the list on a trail picked on the map, without flying anywhere: its park, or its region */
+  private setScopeFor(t: Trail) {
+    if (this.inScope(t)) return;
+    this.setPark(t.park ?? t.region ?? null, false);
   }
 
   private updateRideButton(t: Trail) {
