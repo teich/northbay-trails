@@ -8,7 +8,7 @@ import { POST_FRAG, POST_VERT } from './shaders';
 import { buildLandscape } from './terrain';
 import { Rides } from './rides';
 import { TrailLayer, planGroup, setRiddenCheck } from './trails';
-import { UI, planSummary } from './ui';
+import { UI, mobile, planSummary } from './ui';
 
 const VIEW_HEIGHT = 330; // world units visible vertically at zoom 1
 const POLAR = 0.98; // camera tilt from vertical (radians) — close to true isometric
@@ -204,7 +204,16 @@ async function main() {
     az = flight ? flight.to.azimuth : controls.getAzimuthalAngle(),
     polar = flight ? flight.to.polar : controls.getPolarAngle(),
   ) {
-    flyTo(computeView(box, pad, az, polar));
+    flyTo(computeView(box, fitPad(pad), az, polar));
+  }
+
+  // On phones the panels sit along the bottom (the sheet, or the trail card over it) and the
+  // controls down the right edge, so frame into what's left above them.
+  function fitPad(pad: Padding): Padding {
+    if (!mobile.matches) return pad;
+    const card = document.getElementById('card')!;
+    const covered = (card.classList.contains('open') ? card : document.getElementById('panel')!).offsetHeight;
+    return { left: 12, right: 60, top: 16, bottom: covered + 12 };
   }
 
   // "Home" frames the whole painted region; each park button frames that park.
@@ -325,7 +334,7 @@ async function main() {
     if (!down) return;
     const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
     if (moved < 5 && e.button === 0) {
-      const id = trailLayer.pick(camera, e.clientX, e.clientY, width, height, 10);
+      const id = trailLayer.pick(camera, e.clientX, e.clientY, width, height, e.pointerType === 'touch' ? 22 : 10);
       if (id !== null) select(id);
       else if (selected !== null) select(null);
     }

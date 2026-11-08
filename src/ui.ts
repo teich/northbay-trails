@@ -18,6 +18,9 @@ interface Handlers {
   onZoom: (factor: number) => void;
 }
 
+/** Phone layout: the panel becomes a bottom sheet and the trail card slides up over it */
+export const mobile = matchMedia('(max-width: 700px)');
+
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const escape = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const norm = (s: string) =>
@@ -161,8 +164,49 @@ export class UI {
     $('#btn-in').addEventListener('click', () => this.h.onZoom(1.6));
     $('#btn-out').addEventListener('click', () => this.h.onZoom(1 / 1.6));
 
+    this.setupSheet();
     this.updateProgress();
     this.render();
+  }
+
+  /** On phones the panel is a bottom sheet: a peek (title + search) that expands to the full list */
+  private setupSheet() {
+    const panel = $('#panel');
+    const handle = $('#sheet-handle');
+    const grip = [handle, $('#panel header')];
+    let startY: number | null = null;
+    for (const el of grip) {
+      el.addEventListener('pointerdown', (e) => {
+        if (mobile.matches) startY = e.clientY;
+      });
+      el.addEventListener('pointerup', (e) => {
+        if (startY === null) return;
+        const dy = e.clientY - startY;
+        startY = null;
+        // a swipe sets the direction; a tap toggles
+        this.setSheet(Math.abs(dy) > 24 ? dy < 0 : !panel.classList.contains('expanded'));
+      });
+      el.addEventListener('pointercancel', () => (startY = null));
+    }
+    this.search.addEventListener('focus', () => {
+      if (mobile.matches) this.setSheet(true);
+    });
+    // the credits live at the bottom of the sheet on phones, in the corner of the map otherwise
+    const credits = $('#attribution');
+    // (resize too: the media query's change event doesn't always fire, e.g. under device emulation)
+    const sync = () => {
+      const home = mobile.matches ? panel : document.body;
+      if (credits.parentElement !== home) home.appendChild(credits);
+      if (!mobile.matches) this.setSheet(false);
+    };
+    mobile.addEventListener('change', sync);
+    window.addEventListener('resize', sync);
+    sync();
+  }
+
+  setSheet(expanded: boolean) {
+    $('#panel').classList.toggle('expanded', expanded);
+    $('#sheet-handle').setAttribute('aria-expanded', String(expanded));
   }
 
   /** The park ids a scope covers: one park, a region's parks, or (null) every park */
@@ -184,6 +228,8 @@ export class UI {
     document.querySelectorAll<HTMLElement>('[data-park]').forEach((b) => b.classList.toggle('on', (b.dataset.park || null) === id));
     this.updateProgress();
     this.render();
+    // on a phone, get the sheet out of the way so the map can show where we're going
+    if (fly && mobile.matches) this.setSheet(false);
     if (fly) this.h.onPark(id, this.scopeParks(id), this.trails.filter((t) => !t.road && !t.plan && this.inScope(t, id)).map((t) => t.id));
   }
 
@@ -295,6 +341,7 @@ export class UI {
     });
     if (!t) {
       this.card.classList.remove('open');
+      document.body.classList.remove('card-open');
       history.replaceState(null, '', location.pathname);
       return;
     }
@@ -375,6 +422,12 @@ export class UI {
     $('#card-close').addEventListener('click', () => this.h.onSelect(null));
     $('#card-zoom').addEventListener('click', () => this.h.onSelect(t.id));
     this.card.classList.add('open');
+    document.body.classList.add('card-open');
+    if (mobile.matches) {
+      this.setSheet(false);
+      this.search.blur();
+      this.card.scrollTop = 0;
+    }
   }
 
   private showPlan(t: Trail) {

@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>North Bay Trails</title>
     <meta name="description" content="A watercolor, isometric map of the mountain bike trails at Monte Rio Redwoods, Trione-Annadel and Moore Creek, with a checklist of what you've ridden." />
     <meta name="theme-color" content="#f6efe0" />
@@ -21,6 +21,7 @@
     <div id="tooltip" role="tooltip"></div>
 
     <aside id="panel">
+      <button id="sheet-handle" aria-label="Show the trail list" aria-expanded="false" aria-controls="panel"></button>
       <header>
         <h1><span class="wash"></span>North Bay <em>Trails</em></h1>
         <p id="stats" class="sub">Loading trails…</p>
