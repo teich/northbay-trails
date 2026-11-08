@@ -1,4 +1,4 @@
-import { Park, Trail } from './data';
+import { Park, Region, Trail } from './data';
 import { Rides } from './rides';
 import { Filter, PlanGroup, Progress, planGroup, trailColor } from './trails';
 
@@ -7,8 +7,8 @@ interface Handlers {
   onHover: (id: number | null) => void;
   onFilter: (f: Filter) => void;
   onProgress: (p: Progress) => void;
-  /** a park chip was picked (null = the whole region) */
-  onPark: (id: string | null) => void;
+  /** a park or region was picked (null = everywhere): its id, and the parks it covers */
+  onPark: (id: string | null, parks: string[]) => void;
   /** the ridden log changed */
   onRidden: () => void;
   onPlans: (groups: Set<PlanGroup>) => void;
@@ -46,6 +46,7 @@ export class UI {
   constructor(
     private trails: Trail[],
     private parks: Park[],
+    private regions: Region[],
     private rides: Rides,
     private h: Handlers,
   ) {
@@ -106,7 +107,9 @@ export class UI {
 
     const parkBar = $('#parks');
     parkBar.innerHTML =
-      `<button data-park="" class="on">Everywhere</button>` +
+      `<div class="views"><button data-park="" class="on">Everywhere</button>` +
+      regions.map((r) => `<button data-park="${r.id}" title="${escape(r.long)}">${escape(r.name)}<small>${escape(r.long)}</small></button>`).join('') +
+      `</div>` +
       parks.map((p) => `<button data-park="${p.id}" title="${escape(p.long)}">${escape(p.name)}</button>`).join('');
     parkBar.addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-park]');
@@ -173,21 +176,33 @@ export class UI {
     this.render();
   }
 
-  /** Show one park's trails in the list (null = all of them), and tell the map to fly there */
+  /** The park ids a scope covers: one park, a region's parks, or (null) every park */
+  private scopeParks(id: string | null = this.park): string[] {
+    if (!id) return this.parks.map((p) => p.id);
+    if (this.regions.some((r) => r.id === id)) return this.parks.filter((p) => p.region === id).map((p) => p.id);
+    return [id];
+  }
+
+  private inScope(t: Trail) {
+    return !this.park || this.scopeParks().includes(t.park ?? '');
+  }
+
+  /** Show one park's or region's trails in the list (null = all of them), and tell the map to fly there */
   setPark(id: string | null, fly = true) {
     this.park = id;
     document.querySelectorAll<HTMLElement>('[data-park]').forEach((b) => b.classList.toggle('on', (b.dataset.park || null) === id));
     this.updateProgress();
     this.render();
-    if (fly) this.h.onPark(id);
+    if (fly) this.h.onPark(id, this.scopeParks(id));
   }
 
   private updateProgress() {
-    const inScope = this.trails.filter((t) => !t.plan && !t.road && (!this.park || t.park === this.park));
+    const inScope = this.trails.filter((t) => !t.plan && !t.road && this.inScope(t));
     const done = inScope.filter((t) => this.rides.has(t));
     const miles = inScope.reduce((a, t) => a + t.lengthMi, 0);
     const doneMiles = done.reduce((a, t) => a + t.lengthMi, 0);
-    const where = this.park ? this.parks.find((p) => p.id === this.park)!.name : 'all parks';
+    const region = this.regions.find((r) => r.id === this.park);
+    const where = !this.park ? 'all parks' : region ? `${region.name} · ${region.long}` : this.parks.find((p) => p.id === this.park)!.name;
     $('#stats').textContent = `${inScope.length} trails · ${Math.round(miles).toLocaleString()} miles · ${where}`;
     const pct = miles ? (doneMiles / miles) * 100 : 0;
     $('#progress-fill').style.width = `${pct}%`;
@@ -214,7 +229,7 @@ export class UI {
   private render() {
     const q = norm(this.query);
     const words = q.split(' ').filter(Boolean);
-    let results = this.trails.filter((t) => !t.road && this.h.matches(t) && (!this.park || t.park === this.park));
+    let results = this.trails.filter((t) => !t.road && this.h.matches(t) && this.inScope(t));
     if (words.length) {
       results = results
         .map((t) => {
@@ -240,13 +255,14 @@ export class UI {
       return `<li data-id="${t.id}" class="${t.id === this.selected ? 'selected' : ''}${ridden ? ' ridden' : ''}">
           ${t.plan ? swatch(t) : `<button class="ride-check" data-ride="${t.id}" aria-pressed="${ridden}" title="${ridden ? `Ridden ${this.rides.date(t)} · click to unmark` : 'Mark as ridden'}">${ridden ? '✓' : ''}</button>`}
           ${t.plan ? '' : ridden ? '<span class="swatch ridden"></span>' : swatch(t)}
-          <span class="li-name">${escape(t.name)}${t.plan ? `<small class="plan-tag">${planSummary(t)}</small>` : t.area ? `<small>${escape(t.area)}</small>` : ''}</span>
+          <span class="li-name"><span>${escape(t.name)}${ratingMark(t)}</span>${t.plan ? `<small class="plan-tag">${planSummary(t)}</small>` : t.area ? `<small>${escape(t.area)}</small>` : ''}</span>
           <span class="li-len">${t.lengthMi}<small>mi</small></span>
         </li>`;
     };
-    if (!this.park && !this.plansOn && !words.length) {
+    if (this.scopeParks().length > 1 && !this.plansOn && !words.length) {
       // one section per park, west to east
       this.list.innerHTML = this.parks
+        .filter((p) => this.scopeParks().includes(p.id))
         .map((p) => {
           const ts = results.filter((t) => t.park === p.id);
           if (!ts.length) return '';
@@ -298,7 +314,8 @@ export class UI {
     ].join('');
 
     const details: [string, string | null][] = [
-      ['Bike difficulty', t.difficulty ? `${t.difficulty}${t.mtbScale !== null ? ` <small>(S${t.mtbScale})</small>` : ''}` : null],
+      ['Trail rating', t.rating ? `${ratingMark(t)} ${RATING_NAME[t.rating]}` : null],
+      ['Technical grade', t.mtbScale !== null ? `S${t.mtbScale} <small>(${t.difficulty})</small>` : null],
       ['Hike difficulty', t.hikeDifficulty],
       ['Surface', t.surface ? escape(t.surface.replace(/_/g, ' ')) : null],
       ['Managed by', t.operator ? escape(t.operator) : null],
@@ -330,7 +347,7 @@ export class UI {
 
   /** Keep the list on the park of a trail picked on the map, without flying anywhere */
   private setParkQuietly(id: string) {
-    if (this.park !== null && this.park !== id) this.setPark(id, false);
+    if (this.park !== null && !this.scopeParks().includes(id)) this.setPark(id, false);
   }
 
   private updateRideButton(t: Trail) {
@@ -413,6 +430,20 @@ export class UI {
     `;
     this.openCard(t);
   }
+}
+
+const RATING_NAME: Record<string, string> = {
+  green: 'Easy (green circle)',
+  blue: 'Intermediate (blue square)',
+  black: 'Difficult (black diamond)',
+  'double-black': 'Expert (double black diamond)',
+};
+
+/** The green circle / blue square / black diamond(s) for a rated trail */
+function ratingMark(t: Trail) {
+  if (!t.rating) return '';
+  const shape = t.rating === 'green' ? '●' : t.rating === 'blue' ? '■' : t.rating === 'black' ? '◆' : '◆◆';
+  return `<i class="rating ${t.rating}" title="${RATING_NAME[t.rating]}">${shape}</i>`;
 }
 
 function swatch(t: Trail) {

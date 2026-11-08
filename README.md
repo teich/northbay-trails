@@ -1,6 +1,6 @@
 # North Bay Trails
 
-A watercolor-style isometric model of the mountain bike trails at **Monte Rio Redwoods**, **Trione-Annadel**, and **Moore Creek**, with a checklist of which trails you've ridden. The map is one continuous strip of Sonoma and Napa, from the Russian River to Lake Hennessey. Forked from Kyle Aster's [Tahoe Trails](https://trails-fun.warpspire.com/).
+A watercolor-style isometric model of the mountain bike trails at **Monte Rio Redwoods**, **Taylor Mountain**, **Trione-Annadel**, **Jack London**, **Hood Mountain**, the **PUC forest** in Angwin, and **Moore Creek**, with a checklist of which trails you've ridden. The map is one continuous stretch of Sonoma and Napa, from the Russian River to Lake Hennessey. Forked from Kyle Aster's [Tahoe Trails](https://trails-fun.warpspire.com/).
 
 ```
 npm install
@@ -12,11 +12,11 @@ The [`docs/`](docs/README.md) folder covers what the app is for and how to use i
 ## Using it
 
 - **Drag** to pan, **scroll** to zoom, **right-drag** to spin (or `Q` / `E` to rotate 90°, `H` to go home, `U` to hide the interface for screenshots)
-- The park buttons (Monte Rio, Annadel, Moore Creek) fly to that park and narrow the list to it. **Everywhere** goes back to the whole region.
+- **West** (Monte Rio and the Russian River) and **East** (Taylor Mountain to Angwin) frame each half of the map and narrow the list to it. The park buttons below them fly to a single park. **Everywhere** goes back to the whole region.
 - **Click a trail** on the map, or press `/` to search. Arrow keys + Enter pick from the results.
 - **Tick the box** next to a trail, or use the button on its card, to mark it ridden. Ridden trails turn teal on the map. The bar shows trails and miles ridden for the current park. **To ride** / **Ridden** filter both the list and the map.
 - The ridden list is saved in this browser's localStorage. Use **Export** / **Import** at the bottom of the panel to back it up or move it to another browser.
-- Links like `#park=annadel` or `#trail=Lawndale%20Trail` open straight to a park or trail.
+- Links like `#park=east`, `#park=annadel`, or `#trail=Lawndale%20Trail` open straight to a view, park, or trail.
 
 ## Data
 
@@ -24,7 +24,7 @@ The [`docs/`](docs/README.md) folder covers what the app is for and how to use i
 
 | What | Source |
 | --- | --- |
-| Park outlines | OpenStreetMap (Moore Creek is hand-drawn around its trails because OSM has no outline for it) |
+| Park outlines | OpenStreetMap (Moore Creek is hand-drawn around its trails because OSM has no outline for it; PUC uses the college forest's woodland outline) |
 | Trails | OpenStreetMap (Overpass) |
 | Lakes, the Russian River, peaks, towns | OpenStreetMap |
 | Elevation | AWS Terrain Tiles (Terrarium, z13) |
@@ -34,6 +34,7 @@ How trails are chosen:
 - Named OSM paths, tracks (fire roads), and bridleways where at least half the trail lies inside a park or within that park's buffer distance. Private trails, trails closed to access, informal paths, and sidewalks are dropped.
 - Segments are grouped into trails by park, name, and connectedness.
 - **Bike access** comes from the OSM `bicycle` / `mtb:scale` tags. When OSM doesn't say, bikes are assumed allowed except on footways.
+- **Trail ratings** (green circle, blue square, black diamond, double black) come from `mtb:scale:imba` when it's mapped, otherwise from the `mtb:scale` technical grade (S0 green, S1 blue, S2 black, S3+ double black). The hardest piece of a trail sets its rating. Only about 30 trails here are rated in OSM; the rest show no mark.
 
 To add a park, add an entry to `PARKS` in `scripts/build-data.mjs` (and widen `BBOX` if it's outside the region), then run `npm run data`. To drop a trail that doesn't belong, add its name to that park's `exclude`.
 
@@ -49,7 +50,7 @@ It's a static site. `npm run build` writes everything to `dist/`. [`render.yaml`
 
 ## How it's drawn
 
-Three.js with an orthographic camera. The terrain is a 30 m heightmap mesh with 3× vertical exaggeration, set in a diorama block. The watercolor look comes from:
+Three.js with an orthographic camera. The terrain is a 35 m heightmap mesh with 3× vertical exaggeration, set in a diorama block. The watercolor look comes from:
 
 - `src/shaders.ts`: a slope, aspect, and noise palette with banded "wet edge" lighting and cool violet shadows. It paints golden grass on sunny slopes, oak woodland in patches, and fir and redwood forest on north-facing slopes and toward the foggy west. Land outside the parks is painted in a paler wash.
 - A full-screen pass that wobbles the edges, darkens pigment at color boundaries, and adds cold-press paper grain

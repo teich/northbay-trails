@@ -239,7 +239,7 @@ async function main() {
   let focus = 0;
   let focusTarget = 0;
 
-  const ui = new UI(trails, map.parks, rides, {
+  const ui = new UI(trails, map.parks, map.regions, rides, {
     onSelect: (id, opts) => select(id, opts),
     onHover: (id) => setHover(id),
     onFilter: (f) => {
@@ -253,9 +253,9 @@ async function main() {
       if (selected !== null && !trailLayer.matches(trails[selected])) select(null);
       dirty = true;
     },
-    onPark: (id) => {
+    onPark: (id, parks) => {
       if (selected !== null) select(null);
-      if (id) frameBox(parkPoints.get(id)!, { left: 380, right: 80, top: 60, bottom: 60 });
+      if (id) frameBox(parks.flatMap((p) => parkPoints.get(p)!), { left: 380, right: 80, top: 60, bottom: 60 });
       else home();
       history.replaceState(null, '', id ? `#park=${id}` : location.pathname);
     },
@@ -421,7 +421,7 @@ async function main() {
 
   // deep links: #park=<id>, #trail=<name> or #plan=<name>
   const parkLink = location.hash.match(/^#park=(.+)$/);
-  if (parkLink && parkPoints.has(parkLink[1])) setTimeout(() => ui.setPark(parkLink[1]), 1300);
+  if (parkLink && (parkPoints.has(parkLink[1]) || map.regions.some((r) => r.id === parkLink[1]))) setTimeout(() => ui.setPark(parkLink[1]), 1300);
   const link = location.hash.match(/^#(trail|plan)=(.+)$/);
   if (link) {
     const name = decodeURIComponent(link[2]).toLowerCase();

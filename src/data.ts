@@ -31,6 +31,8 @@ export interface MapData {
   exaggeration: number;
   /** The parks whose trails are drawn; everything else is painted as faded context */
   parks: Park[];
+  /** Groups of parks, for the West / East views */
+  regions: Region[];
   lakes: Lake[];
   wilderness: { name: string; rings: XY[][] }[];
   /** A few named roads drawn for context; not trails */
@@ -39,12 +41,21 @@ export interface MapData {
   attribution: string[];
 }
 
+export interface Region {
+  id: string;
+  name: string;
+  long: string;
+}
+
 export interface Park {
   id: string;
+  region: string;
   name: string;
   long: string;
   rings: XY[][];
 }
+
+export type Rating = 'green' | 'blue' | 'black' | 'double-black';
 
 export type PlanKind = 'new' | 'designate' | 'adopt' | 'decommission';
 export type PlanMode = 'ebike' | 'nonmoto' | 'foot' | 'moto' | 'none';
@@ -90,6 +101,8 @@ export interface Trail {
   bikeInferred: boolean;
   difficulty: string | null;
   mtbScale: number | null;
+  /** Trail rating from OSM, when mapped */
+  rating?: Rating | null;
   hikeDifficulty: string | null;
   surface: string | null;
   operator: string | null;

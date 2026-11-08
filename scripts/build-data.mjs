@@ -28,12 +28,19 @@ const M_PER_DEG_LAT = 111320;
 // ---------------------------------------------------------------------------
 // The region and its parks
 
-const BBOX = { west: -123.065, east: -122.33, south: 38.36, north: 38.585 };
-const GRID_SPACING = 30; // meters between terrain samples
+const BBOX = { west: -123.065, east: -122.33, south: 38.315, north: 38.615 };
+const GRID_SPACING = 35; // meters between terrain samples
 const DEM_ZOOM = 13;
 const EXAGGERATION = 3; // the hills here are low; Tahoe used 2.3 on mountains twice as tall
 
-// Each park's trails are drawn and listed. Add a park here to add it to the map.
+// Parks are grouped into regions for the West / East views
+const REGIONS = [
+  { id: 'west', name: 'West', long: 'Russian River' },
+  { id: 'east', name: 'East', long: 'Santa Rosa to Angwin' },
+];
+
+// Each park's trails are drawn and listed, in this order (roughly west to east). Add a park
+// here to add it to the map.
 //
 //   park      the outline: OSM element ids, or a hand-drawn ring of [lon, lat]
 //   buffer    meters outside the outline a trail may still count as part of the park
@@ -42,6 +49,7 @@ const EXAGGERATION = 3; // the hills here are low; Tahoe used 2.3 on mountains t
 const PARKS = [
   {
     id: 'monte-rio',
+    region: 'west',
     name: 'Monte Rio',
     long: 'Monte Rio Redwoods',
     park: { osm: ['way/1224024281', 'way/1224024282', 'way/1224024283'] },
@@ -49,7 +57,17 @@ const PARKS = [
     exclude: {},
   },
   {
+    id: 'taylor-mountain',
+    region: 'east',
+    name: 'Taylor Mountain',
+    long: 'Taylor Mountain Regional Park',
+    park: { osm: ['way/348403151'] },
+    buffer: 120,
+    exclude: {},
+  },
+  {
     id: 'annadel',
+    region: 'east',
     name: 'Annadel',
     long: 'Trione-Annadel State Park',
     park: { osm: ['relation/181062', 'way/195463377', 'way/195463277'] }, // Annadel + Spring Lake + Howarth
@@ -57,7 +75,35 @@ const PARKS = [
     exclude: {},
   },
   {
+    id: 'jack-london',
+    region: 'east',
+    name: 'Jack London',
+    long: 'Jack London State Historic Park',
+    park: { osm: ['relation/227964'] },
+    buffer: 120,
+    exclude: {},
+  },
+  {
+    id: 'hood-mountain',
+    region: 'east',
+    name: 'Hood Mountain',
+    long: 'Hood Mountain Regional Park',
+    park: { osm: ['relation/16794217', 'way/1244207174'] }, // the park + the McCormick Ranch addition
+    buffer: 120,
+    exclude: {},
+  },
+  {
+    id: 'puc',
+    region: 'east',
+    name: 'PUC',
+    long: 'PUC Forest, Angwin',
+    park: { osm: ['way/548463883'] }, // Pacific Union College's forest, mapped as natural=wood
+    buffer: 150,
+    exclude: {},
+  },
+  {
     id: 'moore-creek',
+    region: 'east',
     name: 'Moore Creek',
     long: 'Moore Creek Park',
     // OSM has no outline for the park; this is drawn around its signed bike trails
@@ -447,6 +493,7 @@ out tags geom;`),
       bike,
       bikeInferred,
       mtbScale: t['mtb:scale'] ?? null,
+      imba: t['mtb:scale:imba'] ?? null,
       sacScale: t.sac_scale ?? null,
       surface: t.surface ?? null,
       operator: t.operator ?? null,
@@ -578,6 +625,18 @@ out tags geom;`),
       const bikeShare = group.filter((s) => s.bike).reduce((a, s) => a + lineLength(s.pts), 0) / total;
       const mtb = group.map((s) => s.mtbScale).filter((v) => v != null).map((v) => parseInt(v, 10)).filter((v) => !isNaN(v));
       const sac = group.map((s) => s.sacScale).filter(Boolean);
+      // Trail rating (green circle / blue square / black diamond / double black) from
+      // mtb:scale:imba when mapped, otherwise converted from the mtb:scale technical grade.
+      // The hardest piece sets the rating.
+      const ratings = group
+        .map((s) => {
+          const imba = parseInt(s.imba, 10);
+          if (!isNaN(imba)) return Math.max(1, Math.min(4, imba));
+          const sc = parseInt(s.mtbScale, 10);
+          if (!isNaN(sc)) return [1, 2, 3, 4, 4, 4, 4][Math.min(6, sc)];
+          return null;
+        })
+        .filter((v) => v != null);
       const surfaces = [...new Set(group.map((s) => s.surface).filter(Boolean))];
       const operators = [...new Set(group.map((s) => s.operator).filter(Boolean))];
       trails.push({
@@ -590,6 +649,7 @@ out tags geom;`),
         fireRoad: group.every((s) => s.fireRoad),
         difficulty: mtb.length ? MTB_LABEL[Math.max(...mtb)] : null,
         mtbScale: mtb.length ? Math.max(...mtb) : null,
+        rating: ratings.length ? ['green', 'blue', 'black', 'double-black'][Math.max(...ratings) - 1] : null,
         hikeDifficulty: sac.length ? SAC_LABEL[sac.sort()[0]] ?? null : null,
         surface: surfaces.slice(0, 2).join(', ') || null,
         operator: operators.slice(0, 2).join(' · ') || null,
@@ -640,7 +700,8 @@ out tags geom;`),
     elevation: { min: Math.round(minEle), max: Math.round(maxEle) },
     datum: Math.round(minEle),
     exaggeration: EXAGGERATION,
-    parks: PARKS.map((p) => ({ id: p.id, name: p.name, long: p.long, rings: p.polys.map((q) => round(simplify(q.outer, 6))) })),
+    regions: REGIONS,
+    parks: PARKS.map((p) => ({ id: p.id, region: p.region, name: p.name, long: p.long, rings: p.polys.map((q) => round(simplify(q.outer, 6))) })),
     lakes,
     wilderness: [],
     roads: [],

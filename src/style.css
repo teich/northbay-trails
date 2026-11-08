@@ -1208,3 +1208,50 @@ body.clean :is(#panel, #builders, #card, #legend, #legend-plan, #controls, #hint
   font-style: italic;
   color: var(--ridden);
 }
+
+/* ---------- trail ratings (from OSM mtb:scale:imba / mtb:scale) */
+.rating {
+  font-style: normal;
+  font-size: 12px;
+  margin-left: 6px;
+  letter-spacing: -1px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+.rating.green {
+  color: #2e8b3e;
+}
+.rating.blue {
+  color: #2a5db0;
+}
+.rating.black,
+.rating.double-black {
+  color: #1d1a20;
+}
+#card dd .rating {
+  margin-left: 0;
+  margin-right: 2px;
+}
+
+/* ---------- West / East views, above the park chips */
+.parks .views {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 2px;
+}
+.parks .views button {
+  flex: 1;
+  border-radius: 12px;
+  padding: 5px 8px;
+  line-height: 1.15;
+}
+.parks .views button small {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+.parks .views button:first-child {
+  flex: 0.8;
+}
